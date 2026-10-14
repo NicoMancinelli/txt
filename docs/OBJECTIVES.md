@@ -37,14 +37,21 @@
 - [x] Sublime-style status bar with line/column coordinates, multi-cursor count, encoding, spaces, and sync status.
 - [x] GUI integration test suite (`gui_test.rs`).
 
-## Milestone 5: GitHub Pipeline & Continuous Integration [IN PROGRESS]
+## Milestone 5: GitHub Pipeline & Continuous Integration [COMPLETED]
 - [x] Git repository initialization and `.gitignore` setup.
-- [x] GitHub Actions CI workflow for automated checking and testing.
-- [ ] Create remote GitHub repository via `gh` CLI.
-- [ ] Push codebase and configure branch protection rules.
+- [x] GitHub Actions CI workflow for automated checking and testing (`.github/workflows/ci.yml`).
+- [x] Create remote GitHub repository via `gh` CLI: [NicoMancinelli/txt](https://github.com/NicoMancinelli/txt).
+- [x] Push codebase to `main` branch.
+- [x] Branching & PR workflow: Created and merged Pull Request #1 (`feature/benchmarks`) and Pull Request #2 (`feature/rea-sublime-enhancements`).
 
-## Milestone 6: Future Extensions [PLANNED]
+## Milestone 6: Empirical REA Dissection & Sublime Features [COMPLETED]
+- [x] Reverse engineer `Sublime Text.app` universal Mach-O binary (`sublime_text`).
+- [x] Extract linked frameworks, class hierarchies, and symbol tables.
+- [x] Implement Skyline Minimap on editor view with viewport indicator box and toggle control.
+- [x] Implement Sublime case transformation engine (`TextTransform`: Upper, Lower, Title, snake_case, kebab-case, CamelCase).
+- [x] Implement indentation transformations (tabs to spaces, spaces to tabs).
+
+## Milestone 7: Future Extensions [PLANNED]
 - [ ] Language Server Protocol (LSP) client over async stdio.
-- [ ] Sublime Text Minimap rendering (scaled down font texture buffer).
 - [ ] WASM plugin runtime (Wasmtime sandbox for custom commands and extensions).
 - [ ] CRDT-based operational transform for real-time collaborative editing.

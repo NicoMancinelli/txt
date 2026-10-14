@@ -42,3 +42,18 @@
   - Built viewport line rendering: only queries and paints visible line ranges.
   - Integrated tab strip, file explorer sidebar (`Cmd+K, Cmd+B`), and status bar displaying line/column, encoding, language, memory, and sync status.
 - **Outcome**: Verified via automated integration tests in `crates/txt-gui/tests/gui_test.rs`.
+
+---
+
+### Entry 005: Empirical REA Dissection of `Sublime Text.app`
+- **Context**: The user provided a native sample `Sublime Text.app` in `sample app/`.
+- **Analysis**:
+  - Binary disassembly (`otool`, `file`, `strings`) revealed linked frameworks (`OpenGL`, `QuartzCore`, `CoreText`, `Cocoa`).
+  - Extracted core classes: `TextBuffer`, `TextBufferSelection`, `TokenRenderer`, `skyline_minimap_control`, `command_palette_overlay`, `memory_arena`, `parallel_for_task` (4096-item batch size).
+  - Package inspection (`Default.sublime-package`, `Color Scheme - Default.sublime-package`) unveiled commands architecture and Mariana HSL color tokens.
+- **Implementation**:
+  - Implemented Skyline Minimap in `crates/txt-gui/src/editor_view.rs` with viewport indicator box and toggle control.
+  - Implemented `TextTransform` suite for Sublime-style case conversions (Upper, Lower, Title, snake_case, kebab-case, CamelCase) and indentation conversions.
+  - Created and merged Pull Request #2 (`feature/rea-sublime-enhancements`).
+  - Updated `.gitignore` to prevent committing proprietary binary blobs.
+- **Outcome**: All 21 workspace tests pass cleanly. Codebase pushed and synchronized with remote repository.
