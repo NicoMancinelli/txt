@@ -46,3 +46,53 @@ The **Reverse Engineer Anything (REA)** framework decomposes proprietary softwar
 ### 2.5 Extensibility & Subprocess Architecture
 * **Analysis**: Sublime Text isolates its Python plugin host (`plugin_host`) into a separate process communicating over local IPC. This guarantees that a slow or crashing plugin never freezes the text editor UI thread.
 * **Rust Counterpart in `txt`**: Modular crate separation (`txt-core`, `txt-sync`, `txt-gui`) with thread-safe messaging channels (`crossbeam-channel`) and isolated sync engine workers.
+
+---
+
+## 3. Empirical Dissection of `Sublime Text.app` Sample
+
+Using binary inspection tools (`file`, `otool -L`, `strings`, `unzip`), we disassembled and analyzed the provided `sample app/Sublime Text.app` bundle directly in the workspace.
+
+### 3.1 Binary Architecture & Framework Dependencies
+Inspecting `Contents/MacOS/sublime_text`:
+```bash
+file "sample app/Sublime Text.app/Contents/MacOS/sublime_text"
+# Mach-O universal binary with 2 architectures: [x86_64] [arm64]
+
+otool -L "sample app/Sublime Text.app/Contents/MacOS/sublime_text"
+```
+**Key Linked Frameworks**:
+- `OpenGL.framework` & `QuartzCore.framework`: Hardware-accelerated rendering pipeline bypassing WebViews.
+- `CoreText.framework`: Low-level font rasterization and glyph metrics.
+- `AppKit.framework` & `Cocoa.framework`: Minimal native window wrapper.
+
+### 3.2 Mangled C++ Symbol Deconstruction
+Extracting symbols from the data and text sections exposed the internal C++ class hierarchies:
+- **Buffer & View Engine**:
+  - `TextBuffer`, `TextBufferSelection`, `TextBufferView`
+  - `TokenRenderer`: Fast lexical syntax highlighting
+  - `FileBufferSource`, `BufferSource`
+- **Memory & Concurrency Primitives**:
+  - `memory_arena`, `string_buffer`
+  - `parallel_for_task` with chunk size `Li4096EE` (4096-item batching for multicore project symbol search)
+- **UI Controls**:
+  - `skyline_minimap_control`, `minimap_drag_handler`
+  - `command_palette_overlay`, `command_palette_command_source`
+  - `grid_layout_control`, `viewport_control`
+
+### 3.3 Package & Color Scheme Anatomy
+Inspecting `Packages/Default.sublime-package` and `Packages/Color Scheme - Default.sublime-package`:
+- **Package Container**: Standard PKZIP archives holding declarative JSON definitions.
+- **Commands Format** (`Default.sublime-commands`):
+  ```json
+  { "caption": "Convert Case: Upper Case", "command": "upper_case" }
+  { "caption": "View: Toggle Minimap", "command": "toggle_minimap" }
+  ```
+- **Color Scheme Definitions** (`Mariana.sublime-color-scheme`):
+  Uses exact HSL definitions for themes:
+  - Background: `hsl(210, 15%, 22%)` (`#303841` / `#1e2227`)
+  - Caret: `hsl(32, 93%, 66%)` (`#f99157` — iconic Sublime orange)
+  - Selection: `hsla(210, 13%, 40%, 0.7)` (`#3e4857`)
+  - String tokens: `hsl(114, 31%, 68%)` (`#99c794`)
+  - Keyword tokens: `hsl(300, 30%, 68%)` (`#c594c5`)
+

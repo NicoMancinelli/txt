@@ -18,3 +18,8 @@ target/
 
 # Build artifacts
 /dist/
+
+# Sample proprietary apps for REA analysis
+sample app/
+*.app/
+*.sublime-package

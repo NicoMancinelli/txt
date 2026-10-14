@@ -11,6 +11,7 @@ pub struct EditorView {
     pub line_height: f32,
     pub tab_size: usize,
     pub scroll_offset_y: f32,
+    pub show_minimap: bool,
 }
 
 impl Default for EditorView {
@@ -20,6 +21,7 @@ impl Default for EditorView {
             line_height: 20.0,
             tab_size: 4,
             scroll_offset_y: 0.0,
+            show_minimap: true,
         }
     }
 }
@@ -178,6 +180,59 @@ impl EditorView {
                 );
                 painter.rect_filled(caret_rect, Rounding::same(1.0), theme.cursor_color());
             }
+        }
+
+        // Skyline Minimap (Sublime Text style minimap)
+        if self.show_minimap && rect.width() > 320.0 {
+            let minimap_width = 85.0_f32;
+            let minimap_rect = Rect::from_min_size(
+                Pos2::new(rect.max.x - minimap_width, rect.min.y),
+                Vec2::new(minimap_width, rect.height()),
+            );
+
+            // Minimap background with subtle border
+            painter.rect_filled(minimap_rect, Rounding::ZERO, Color32::from_black_alpha(40));
+            painter.line_segment(
+                [
+                    Pos2::new(minimap_rect.min.x, minimap_rect.min.y),
+                    Pos2::new(minimap_rect.min.x, minimap_rect.max.y),
+                ],
+                Stroke::new(1.0_f32, Color32::from_white_alpha(15)),
+            );
+
+            // Render mini line bars
+            let mini_line_height = 2.5_f32;
+            let mini_spacing = 1.0_f32;
+            let max_visible_mini_lines = (minimap_rect.height() / (mini_line_height + mini_spacing)).floor() as usize;
+
+            for i in 0..total_lines.min(max_visible_mini_lines) {
+                let y = minimap_rect.min.y + 6.0 + (i as f32) * (mini_line_height + mini_spacing);
+                let line_len = buffer.line(i).map_or(0, |l| l.len_chars());
+                let bar_width = ((line_len as f32) * 1.8).min(minimap_width - 16.0).max(4.0);
+
+                let bar_rect = Rect::from_min_size(
+                    Pos2::new(minimap_rect.min.x + 8.0, y),
+                    Vec2::new(bar_width, mini_line_height),
+                );
+                painter.rect_filled(bar_rect, Rounding::ZERO, Color32::from_white_alpha(35));
+            }
+
+            // Viewport indicator box
+            let viewport_ratio = (rect.height() / (self.line_height * (total_lines as f32))).min(1.0);
+            let indicator_height = (minimap_rect.height() * viewport_ratio).max(24.0);
+            let scroll_ratio = if total_lines > 1 {
+                self.scroll_offset_y / ((total_lines as f32) * self.line_height)
+            } else {
+                0.0
+            };
+            let indicator_y = minimap_rect.min.y + scroll_ratio * minimap_rect.height();
+
+            let indicator_rect = Rect::from_min_size(
+                Pos2::new(minimap_rect.min.x + 2.0, indicator_y),
+                Vec2::new(minimap_width - 4.0, indicator_height),
+            );
+            painter.rect_filled(indicator_rect, Rounding::same(3.0), Color32::from_white_alpha(25));
+            painter.rect_stroke(indicator_rect, Rounding::same(3.0), Stroke::new(1.0_f32, Color32::from_white_alpha(45)));
         }
     }
 
