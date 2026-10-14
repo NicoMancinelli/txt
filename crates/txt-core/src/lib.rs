@@ -3,7 +3,10 @@ pub mod command;
 pub mod cursor;
 pub mod fuzzy;
 pub mod history;
+pub mod lsp;
 pub mod memory;
+pub mod plugin;
+pub mod search;
 pub mod syntax;
 pub mod transform;
 
@@ -12,6 +15,18 @@ pub use command::{Command, CommandDescriptor, CommandRegistry, MatchedCommand};
 pub use cursor::{CursorPosition, Selection, SelectionSet};
 pub use fuzzy::{FuzzyMatch, FuzzyMatcher};
 pub use history::{Change, HistoryManager, Transaction};
+pub use lsp::{
+    CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity, HoverInfo,
+    LspClientState, LspError, LspFramingError, LspFramingParser, Position, Range,
+    RpcError, RpcId, RpcMessage, RpcNotification, RpcRequest, RpcResponse,
+};
 pub use memory::MemoryMetrics;
+pub use plugin::{
+    AutoClosingBracketsPlugin, BracketPair, CompletionCandidate, EventListener, PluginManager,
+    WordCountPlugin,
+};
+pub use search::{
+    ProjectSearchEngine, SearchError, SearchQuery, SearchResult, SUBLIME_BATCH_SIZE,
+};
 pub use syntax::{Language, SyntaxHighlighter, SyntaxToken, TokenType};
 pub use transform::TextTransform;
