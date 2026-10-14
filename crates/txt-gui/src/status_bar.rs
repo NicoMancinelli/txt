@@ -15,6 +15,7 @@ impl StatusBar {
         selections: &SelectionSet,
         language: Language,
         sync_status: SyncStatus,
+        notification: Option<&str>,
     ) {
         egui::Frame::none()
             .fill(theme.status_bar_bg())
@@ -47,6 +48,16 @@ impl StatusBar {
                         ui.label(
                             egui::RichText::new(format!("{} cursors", selections.selections().len()))
                                 .color(Color32::from_rgb(0xfa, 0xc8, 0x63))
+                                .size(11.0),
+                        );
+                    }
+
+                    // Notification banner if active
+                    if let Some(msg) = notification {
+                        ui.separator();
+                        ui.label(
+                            egui::RichText::new(format!("⚡ {}", msg))
+                                .color(Color32::from_rgb(0x5f, 0xb3, 0xb3))
                                 .size(11.0),
                         );
                     }

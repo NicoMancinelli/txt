@@ -60,3 +60,25 @@ fn test_app_command_palette_search() {
     assert!(!app.palette.matched_commands.is_empty());
     assert_eq!(app.palette.matched_commands[0].descriptor.id, "file.save");
 }
+
+#[test]
+fn test_app_new_commands_integration() {
+    let mut app = TxtEditorApp::new();
+
+    // Test find in files command
+    app.execute_command("find.in_files");
+    assert!(app.last_notification.is_some());
+    assert!(app.last_notification.as_ref().unwrap().contains("Find in Files"));
+
+    // Test plugin word count stats
+    app.execute_command("plugin.word_count");
+    assert!(app.last_notification.as_ref().unwrap().contains("Document Stats"));
+
+    // Test LSP status
+    app.execute_command("lsp.status");
+    assert!(app.last_notification.as_ref().unwrap().contains("LSP: Ready"));
+
+    // Test CRDT delta sync
+    app.execute_command("sync.crdt_delta");
+    assert!(app.last_notification.as_ref().unwrap().contains("CRDT Patch synced"));
+}

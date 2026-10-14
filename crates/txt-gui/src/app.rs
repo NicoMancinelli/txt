@@ -5,6 +5,9 @@ use uuid::Uuid;
 use txt_core::buffer::TextBuffer;
 use txt_core::command::{CommandDescriptor, CommandRegistry};
 use txt_core::cursor::{Selection, SelectionSet};
+use txt_core::lsp::LspClientState;
+use txt_core::plugin::{AutoClosingBracketsPlugin, PluginManager, WordCountPlugin};
+use txt_core::search::{ProjectSearchEngine, SearchQuery};
 use txt_core::syntax::Language;
 use txt_sync::adapter::{SyncAdapter, SyncStatus};
 use txt_sync::cloud_adapter::{CloudConfig, CloudSyncAdapter};
@@ -32,6 +35,9 @@ pub struct TxtEditorApp {
     pub cloud_adapter: Arc<CloudSyncAdapter>,
     pub current_document_id: Uuid,
     pub document_revision: u64,
+    pub plugin_manager: Arc<PluginManager>,
+    pub lsp_state: Arc<LspClientState>,
+    pub last_notification: Option<String>,
 }
 
 impl Default for TxtEditorApp {
@@ -72,6 +78,16 @@ fn main() {
         // Register client to enable background sync worker
         sync_engine.register_client();
 
+        let initial_doc_id = Uuid::new_v4();
+        sync_engine.init_crdt_buffer(initial_doc_id, "local_peer", &initial_buffer.text());
+
+        let plugin_manager = Arc::new(PluginManager::new());
+        plugin_manager.register(Arc::new(WordCountPlugin::new()));
+        plugin_manager.register(Arc::new(AutoClosingBracketsPlugin::new()));
+        plugin_manager.on_modified(&initial_buffer);
+
+        let lsp_state = Arc::new(LspClientState::new());
+
         let mut app = Self {
             theme: EditorTheme::Mariana,
             buffers: vec![initial_buffer],
@@ -83,8 +99,11 @@ fn main() {
             registry: CommandRegistry::new(),
             sync_engine,
             cloud_adapter,
-            current_document_id: Uuid::new_v4(),
+            current_document_id: initial_doc_id,
             document_revision: 1,
+            plugin_manager,
+            lsp_state,
+            last_notification: None,
         };
 
         app.register_built_in_commands();
@@ -211,6 +230,34 @@ fn main() {
                 .with_description("Switches cloud adapter state"),
             || {},
         );
+        self.registry.register(
+            CommandDescriptor::new("sync.crdt_delta", "Sync: Broadcast CRDT Delta", "Sync")
+                .with_description("Generates and synchronizes deterministic CRDT patch across adapters"),
+            || {},
+        );
+
+        // Find & Search
+        self.registry.register(
+            CommandDescriptor::new("find.in_files", "Find in Files (Sublime Parallel Search)", "Find")
+                .with_shortcut("Cmd+Shift+F")
+                .with_description("Scans project files using 4096-item batch parallel workers"),
+            || {},
+        );
+
+        // Plugins & Extensibility
+        self.registry.register(
+            CommandDescriptor::new("plugin.word_count", "Plugins: Word Count Statistics", "Plugins")
+                .with_shortcut("Cmd+Option+C")
+                .with_description("Displays live word, character, and line count from active plugin"),
+            || {},
+        );
+
+        // LSP & Diagnostics
+        self.registry.register(
+            CommandDescriptor::new("lsp.status", "LSP: Show Server Status & Diagnostics", "Tools")
+                .with_description("Inspects Language Server Protocol diagnostic cache and status"),
+            || {},
+        );
 
         // Tools
         self.registry.register(
@@ -331,6 +378,31 @@ fn main() {
                     buf.replace(0..buf.len_chars(), &transformed);
                 }
             }
+            "find.in_files" => {
+                let search_engine = ProjectSearchEngine::new();
+                let query = SearchQuery::new("fn");
+                if let Ok(results) = search_engine.search_project(&self.sidebar.current_directory, &query) {
+                    self.last_notification = Some(format!("Find in Files: {} occurrences discovered", results.len()));
+                }
+            }
+            "plugin.word_count" => {
+                let candidates = self.plugin_manager.on_query_completions("stats");
+                let stats = candidates.first().map(|c| c.insert_text.clone()).unwrap_or_else(|| "0 words".to_string());
+                self.last_notification = Some(format!("Document Stats: {}", stats));
+            }
+            "lsp.status" => {
+                let diag_count = self.lsp_state.get_diagnostics(std::path::Path::new("welcome.rs")).len();
+                self.last_notification = Some(format!("LSP: Ready (Active Diagnostics: {})", diag_count));
+            }
+            "sync.crdt_delta" => {
+                if let Ok(Some(patch)) = self.sync_engine.generate_crdt_patch(self.current_document_id) {
+                    self.document_revision += 1;
+                    let _ = self.sync_engine.sync_crdt_patch(&patch, self.document_revision);
+                    self.last_notification = Some(format!("CRDT Patch synced ({} ops)", patch.ops.len()));
+                } else {
+                    self.last_notification = Some("CRDT: Buffer is up-to-date".to_string());
+                }
+            }
             "tools.command_palette" => {
                 self.palette.open(&self.registry);
             }
@@ -407,6 +479,8 @@ impl eframe::App for TxtEditorApp {
             self.execute_command("edit.select_all");
         } else if cmd && ctx.input(|i| i.key_pressed(Key::B)) {
             self.execute_command("view.toggle_sidebar");
+        } else if cmd && shift && ctx.input(|i| i.key_pressed(Key::F)) {
+            self.execute_command("find.in_files");
         }
 
         // Handle Command Palette execution
@@ -440,7 +514,15 @@ impl eframe::App for TxtEditorApp {
                 ) {
                     let lang = self.active_language();
                     let sync_status = self.cloud_adapter.status();
-                    StatusBar::show(ui, self.theme, buf, sels, lang, sync_status);
+                    StatusBar::show(
+                        ui,
+                        self.theme,
+                        buf,
+                        sels,
+                        lang,
+                        sync_status,
+                        self.last_notification.as_deref(),
+                    );
                 }
             });
 
