@@ -1,0 +1,24 @@
+[package]
+name = "txt-gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "txt"
+path = "src/main.rs"
+
+[dependencies]
+txt-core = { path = "../txt-core" }
+txt-sync = { path = "../txt-sync" }
+eframe = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+crossbeam-channel = { workspace = true }
+
+[dev-dependencies]

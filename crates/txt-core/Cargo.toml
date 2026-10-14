@@ -1,0 +1,17 @@
+[package]
+name = "txt-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+ropey = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]

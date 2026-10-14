@@ -1,0 +1,18 @@
+[package]
+name = "txt-sync"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+txt-core = { path = "../txt-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+crossbeam-channel = { workspace = true }
+
+[dev-dependencies]

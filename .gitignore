@@ -1,0 +1,20 @@
+# Rust target directory
+target/
+
+# Cargo lock files (commit for binary applications, but exclude temp files)
+**/*.rs.bk
+*.swp
+*.swo
+*~
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.iml
+.DS_Store
+
+# Logs
+*.log
+
+# Build artifacts
+/dist/
