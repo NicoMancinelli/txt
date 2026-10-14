@@ -150,6 +150,56 @@ fn main() {
             || {},
         );
 
+        self.registry.register(
+            CommandDescriptor::new("view.toggle_minimap", "Toggle Minimap", "View")
+                .with_description("Shows or hides the skyline minimap"),
+            || {},
+        );
+
+        // Convert Case commands (Sublime Text modeled)
+        self.registry.register(
+            CommandDescriptor::new("convert.upper_case", "Convert Case: Upper Case", "Edit")
+                .with_description("Converts selection or document to uppercase"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("convert.lower_case", "Convert Case: Lower Case", "Edit")
+                .with_description("Converts selection or document to lowercase"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("convert.title_case", "Convert Case: Title Case", "Edit")
+                .with_description("Converts text to Title Case"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("convert.snake_case", "Convert Case: snake_case", "Edit")
+                .with_description("Converts identifiers to snake_case"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("convert.kebab_case", "Convert Case: kebab-case", "Edit")
+                .with_description("Converts identifiers to kebab-case"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("convert.camel_case", "Convert Case: lowerCamelCase", "Edit")
+                .with_description("Converts identifiers to lowerCamelCase"),
+            || {},
+        );
+
+        // Indentation commands
+        self.registry.register(
+            CommandDescriptor::new("indent.convert_to_spaces", "Indentation: Convert to Spaces", "Indentation")
+                .with_description("Converts all tabs to spaces"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("indent.convert_to_tabs", "Indentation: Convert to Tabs", "Indentation")
+                .with_description("Converts spaces to tabs"),
+            || {},
+        );
+
         // Sync commands
         self.registry.register(
             CommandDescriptor::new("sync.now", "Sync Document Now", "Sync")
@@ -221,6 +271,65 @@ fn main() {
             "sync.toggle_cloud" => {
                 let current = self.cloud_adapter.status();
                 self.cloud_adapter.set_online(current == SyncStatus::Offline);
+            }
+            "view.toggle_minimap" => {
+                self.editor_view.show_minimap = !self.editor_view.show_minimap;
+            }
+            "convert.upper_case" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::to_uppercase(&text);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
+            }
+            "convert.lower_case" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::to_lowercase(&text);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
+            }
+            "convert.title_case" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::to_title_case(&text);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
+            }
+            "convert.snake_case" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::to_snake_case(&text);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
+            }
+            "convert.kebab_case" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::to_kebab_case(&text);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
+            }
+            "convert.camel_case" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::to_camel_case(&text);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
+            }
+            "indent.convert_to_spaces" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::convert_tabs_to_spaces(&text, self.editor_view.tab_size);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
+            }
+            "indent.convert_to_tabs" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let text = buf.text();
+                    let transformed = txt_core::transform::TextTransform::convert_spaces_to_tabs(&text, self.editor_view.tab_size);
+                    buf.replace(0..buf.len_chars(), &transformed);
+                }
             }
             "tools.command_palette" => {
                 self.palette.open(&self.registry);
