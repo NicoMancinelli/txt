@@ -130,3 +130,40 @@ fn test_editor_duplicate_and_delete_line() {
     let text_after_delete = app.buffers[app.active_tab].text();
     assert_eq!(text_after_delete, "first line\nsecond line\n");
 }
+
+#[test]
+fn test_sidebar_full_suite_project_and_dialogs() {
+    let mut app = TxtEditorApp::new();
+    assert!(!app.sidebar.project_manager.folders.is_empty());
+
+    // Expand all / collapse all
+    app.execute_command("project.expand_all");
+    assert!(app.sidebar.project_manager.folders[0].root_node.is_expanded);
+
+    app.execute_command("project.collapse_all");
+    assert!(!app.sidebar.project_manager.folders[0].root_node.is_expanded);
+
+    // Toggle hidden files
+    assert!(!app.sidebar.project_manager.show_hidden);
+    app.execute_command("project.toggle_hidden");
+    assert!(app.sidebar.project_manager.show_hidden);
+    app.execute_command("project.toggle_hidden");
+    assert!(!app.sidebar.project_manager.show_hidden);
+
+    // Reveal active buffer in sidebar
+    let cargo_path = std::env::current_dir().unwrap().join("Cargo.toml");
+    app.buffers[0].set_file_path(cargo_path.to_str().unwrap());
+    app.execute_command("file.reveal_in_sidebar");
+    assert_eq!(app.sidebar.selected_path.as_deref(), Some(cargo_path.as_path()));
+
+    // Multi-root project addition
+    let crates_dir = std::env::current_dir().unwrap().join("crates");
+    let initial_count = app.sidebar.project_manager.folders.len();
+    app.sidebar.add_folder_to_project(crates_dir.clone());
+    assert_eq!(app.sidebar.project_manager.folders.len(), initial_count + 1);
+
+    // Removal
+    app.sidebar.remove_folder_from_project(&crates_dir);
+    assert_eq!(app.sidebar.project_manager.folders.len(), initial_count);
+}
+
