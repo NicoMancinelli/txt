@@ -39,7 +39,7 @@ impl StatusBar {
 
                     ui.label(
                         egui::RichText::new(selection_text)
-                            .color(Color32::from_rgb(0xa0, 0xa8, 0xb6))
+                            .color(theme.status_bar_text())
                             .size(11.0),
                     );
 
@@ -67,7 +67,7 @@ impl StatusBar {
                         // Language
                         ui.label(
                             egui::RichText::new(language.display_name())
-                                .color(Color32::from_rgb(0xa0, 0xa8, 0xb6))
+                                .color(theme.status_bar_text())
                                 .size(11.0),
                         );
                         ui.separator();

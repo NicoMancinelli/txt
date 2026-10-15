@@ -47,9 +47,9 @@ impl TabBar {
                                 }
 
                                 let text_color = if is_active {
-                                    Color32::WHITE
+                                    theme.tab_active_text()
                                 } else {
-                                    Color32::from_rgb(0x9a, 0xa3, 0xb0)
+                                    theme.tab_inactive_text()
                                 };
 
                                 ui.label(

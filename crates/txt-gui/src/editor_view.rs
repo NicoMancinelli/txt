@@ -145,7 +145,7 @@ impl EditorView {
             // Render line number in gutter
             let line_number_text = format!("{:4}", line_idx + 1);
             let line_num_color = if line_idx == primary_pos.line {
-                Color32::from_rgb(0xc0, 0xc5, 0xce) // Active line number stands out
+                theme.gutter_active_text() // Active line number stands out
             } else {
                 theme.gutter_text()
             };

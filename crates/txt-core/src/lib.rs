@@ -15,6 +15,7 @@ pub mod symbols;
 pub mod syntax;
 pub mod transform;
 pub mod watcher;
+pub mod workspace;
 
 pub use buffer::{LineEnding, TextBuffer};
 pub use command::{Command, CommandDescriptor, CommandRegistry, MatchedCommand};
@@ -45,4 +46,5 @@ pub use symbols::{DocumentSymbol, SymbolExtractor, SymbolKind};
 pub use syntax::{Language, SyntaxHighlighter, SyntaxToken, TokenType};
 pub use transform::TextTransform;
 pub use watcher::{FileSystemWatcher, WatchEvent, WatchEventKind, WatchSubscription};
+pub use workspace::{WorkspaceConfig, WorkspaceFolder, WorkspaceSettings};
 

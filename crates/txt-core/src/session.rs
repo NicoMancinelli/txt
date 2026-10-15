@@ -3,6 +3,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
+pub const MAX_RECENT_FILES: usize = 20;
+pub const MAX_RECENT_WORKSPACES: usize = 10;
+
 /// Serializable editor session state for workspace restoration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionState {
@@ -12,6 +15,12 @@ pub struct SessionState {
     pub font_size: f32,
     pub theme: String,
     pub word_wrap: bool,
+    #[serde(default)]
+    pub recent_files: Vec<PathBuf>,
+    #[serde(default)]
+    pub recent_workspaces: Vec<PathBuf>,
+    #[serde(default)]
+    pub active_workspace: Option<PathBuf>,
 }
 
 impl Default for SessionState {
@@ -23,6 +32,9 @@ impl Default for SessionState {
             font_size: 14.0,
             theme: "Mariana".to_string(),
             word_wrap: true,
+            recent_files: Vec::new(),
+            recent_workspaces: Vec::new(),
+            active_workspace: None,
         }
     }
 }
@@ -86,6 +98,39 @@ impl SessionState {
 
     pub fn with_theme(mut self, theme: impl Into<String>) -> Self {
         self.theme = theme.into();
+        self
+    }
+
+    /// Pushes a file path to the recent files list (LRU, unique, max 20).
+    pub fn push_recent_file(&mut self, path: PathBuf) {
+        self.recent_files.retain(|p| p != &path);
+        self.recent_files.insert(0, path);
+        if self.recent_files.len() > MAX_RECENT_FILES {
+            self.recent_files.truncate(MAX_RECENT_FILES);
+        }
+    }
+
+    /// Pushes a workspace path to the recent workspaces list (LRU, unique, max 10).
+    pub fn push_recent_workspace(&mut self, path: PathBuf) {
+        self.recent_workspaces.retain(|p| p != &path);
+        self.recent_workspaces.insert(0, path);
+        if self.recent_workspaces.len() > MAX_RECENT_WORKSPACES {
+            self.recent_workspaces.truncate(MAX_RECENT_WORKSPACES);
+        }
+    }
+
+    pub fn with_recent_files(mut self, files: Vec<PathBuf>) -> Self {
+        self.recent_files = files;
+        self
+    }
+
+    pub fn with_recent_workspaces(mut self, workspaces: Vec<PathBuf>) -> Self {
+        self.recent_workspaces = workspaces;
+        self
+    }
+
+    pub fn with_active_workspace(mut self, active: Option<PathBuf>) -> Self {
+        self.active_workspace = active;
         self
     }
 
