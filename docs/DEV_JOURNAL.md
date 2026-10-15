@@ -68,3 +68,20 @@
   3. `Plugin & LSP Specialist`: Engineered `crates/txt-core/src/plugin.rs` (EventListener, PluginManager, built-in plugins) and `crates/txt-core/src/lsp.rs` (JSON-RPC stdio streaming framer, diagnostics, completions, hover).
 - **GUI Integration**: Connected all modules into `TxtEditorApp`, adding `Cmd+Shift+F` for Find in Files, live document statistics, LSP diagnostic caches, and CRDT delta syncing.
 - **Outcome**: Workspace test suite grew from 21 tests to 66 passing tests (0 failures, 0 warnings). Binary builds in 0.12s. All roadmap milestones achieved.
+
+---
+
+### Entry 007: v1.0.0 Milestone Release & v1.0.1 File Browser & Editor Enhancements
+- **Context**: The user validated `v1` functionality ("works pretty well. save this as v1 and lets work on v1.0.1 focusing on fixes, building out the file browser more and other fairly simple things").
+- **Release Automation**:
+  - Cut production tags `v1.0.0` and `v1` and published official GitHub Release `v1.0.0`.
+  - Created development branch `feature/v1.0.1-file-browser-enhancements` and bumped workspace manifest version to `1.0.1`.
+- **v1.0.1 Implementation**:
+  - **Sublime "OPEN FILES" Section**: Implemented dedicated section in sidebar displaying all open tabs with active file highlighting, dirty state indicator (`●`), and quick tab close button (`×`).
+  - **Live Filter Bar**: Added search filter input (`🔍`) to instantly filter the project file tree in real-time.
+  - **Inline New File Creation**: Added dialog (`+`) directly in the sidebar toolbar to create files on disk with instantaneous editor opening.
+  - **Comprehensive File Icons**: Added iconography for Rust (`🦀`), Markdown (`📝`), TOML/JSON (`⚙`/`📦`), Python (`🐍`), JS/TS (`🟨`/`🔷`), C/C++ (`🇨`/`➕`), Go (`🐹`), Shell (`🐚`), Web (`🌐`/`🎨`), and images.
+  - **File Size Tooltips**: Hovering over directory entries displays formatted file size in KB and relative path.
+  - **Editor Shortcuts & Word Wrap**: Added soft word wrap toggle (`view.toggle_word_wrap`), line duplication (`edit.duplicate_line` / `Cmd+Shift+D`), and line deletion (`edit.delete_line` / `Cmd+Shift+K`).
+- **Outcome**: All tests pass cleanly across workspace crates (0 warnings, 0 errors).
+

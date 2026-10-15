@@ -4,7 +4,7 @@ use egui::{self, Key};
 use uuid::Uuid;
 use txt_core::buffer::TextBuffer;
 use txt_core::command::{CommandDescriptor, CommandRegistry};
-use txt_core::cursor::{Selection, SelectionSet};
+use txt_core::cursor::{CursorPosition, Selection, SelectionSet};
 use txt_core::lsp::LspClientState;
 use txt_core::plugin::{AutoClosingBracketsPlugin, PluginManager, WordCountPlugin};
 use txt_core::search::{ProjectSearchEngine, SearchQuery};
@@ -150,12 +150,40 @@ fn main() {
                 .with_description("Selects all text in the current buffer"),
             || {},
         );
+        self.registry.register(
+            CommandDescriptor::new("edit.duplicate_line", "Line: Duplicate", "Edit")
+                .with_shortcut("Cmd+Shift+D")
+                .with_description("Duplicates the current line down"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("edit.delete_line", "Line: Delete", "Edit")
+                .with_shortcut("Cmd+Shift+K")
+                .with_description("Deletes the current line"),
+            || {},
+        );
 
         // View commands
         self.registry.register(
             CommandDescriptor::new("view.toggle_sidebar", "Toggle Sidebar", "View")
                 .with_shortcut("Cmd+K, Cmd+B")
                 .with_description("Hides or shows the file navigation sidebar"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.toggle_open_files", "View: Toggle Open Files in Side Bar", "View")
+                .with_description("Shows or hides the Open Files section in the sidebar"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.toggle_word_wrap", "Word Wrap: Toggle", "View")
+                .with_shortcut("Option+Z")
+                .with_description("Toggles soft word wrapping in the editor view"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("project.refresh_folders", "Project: Refresh Folders", "Project")
+                .with_description("Refreshes project directory and file tree in sidebar"),
             || {},
         );
         self.registry.register(
@@ -303,8 +331,44 @@ fn main() {
                     }
                 }
             }
+            "edit.duplicate_line" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get_mut(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    let pos = buf.char_to_pos(sels.primary().head);
+                    if let Some(line_slice) = buf.line(pos.line) {
+                        let line_text = line_slice.to_string();
+                        let next_line_start = buf.pos_to_char(CursorPosition::new(pos.line + 1, 0));
+                        buf.insert(next_line_start, &line_text);
+                    }
+                }
+            }
+            "edit.delete_line" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get_mut(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    let pos = buf.char_to_pos(sels.primary().head);
+                    let line_start = buf.pos_to_char(CursorPosition::new(pos.line, 0));
+                    let line_end = buf.pos_to_char(CursorPosition::new(pos.line + 1, 0));
+                    if line_end > line_start {
+                        buf.delete(line_start..line_end);
+                        sels.set_primary(Selection::point(line_start.min(buf.len_chars())));
+                    }
+                }
+            }
             "view.toggle_sidebar" => {
                 self.sidebar.toggle();
+            }
+            "view.toggle_open_files" => {
+                self.sidebar.toggle_open_files();
+            }
+            "view.toggle_word_wrap" => {
+                self.editor_view.word_wrap = !self.editor_view.word_wrap;
+            }
+            "project.refresh_folders" => {
+                self.sidebar.refresh();
             }
             "view.theme_mariana" => {
                 self.theme = EditorTheme::Mariana;
@@ -481,6 +545,10 @@ impl eframe::App for TxtEditorApp {
             self.execute_command("view.toggle_sidebar");
         } else if cmd && shift && ctx.input(|i| i.key_pressed(Key::F)) {
             self.execute_command("find.in_files");
+        } else if cmd && shift && ctx.input(|i| i.key_pressed(Key::D)) {
+            self.execute_command("edit.duplicate_line");
+        } else if cmd && shift && ctx.input(|i| i.key_pressed(Key::K)) {
+            self.execute_command("edit.delete_line");
         }
 
         // Handle Command Palette execution
@@ -527,6 +595,7 @@ impl eframe::App for TxtEditorApp {
             });
 
         let mut opened_file = None;
+        let mut close_tab_from_sidebar = None;
         if self.sidebar.is_visible {
             egui::SidePanel::left("left_sidebar")
                 .frame(egui::Frame::none().fill(self.theme.sidebar_bg()))
@@ -534,8 +603,19 @@ impl eframe::App for TxtEditorApp {
                 .default_width(200.0)
                 .width_range(140.0..=360.0)
                 .show(ctx, |ui| {
-                    self.sidebar.show(ui, self.theme, &mut opened_file);
+                    self.sidebar.show(
+                        ui,
+                        self.theme,
+                        &self.buffers,
+                        &mut self.active_tab,
+                        &mut close_tab_from_sidebar,
+                        &mut opened_file,
+                    );
                 });
+        }
+
+        if let Some(idx) = close_tab_from_sidebar {
+            self.close_tab(idx);
         }
 
         if let Some(path) = opened_file {

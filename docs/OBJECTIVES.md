@@ -58,3 +58,15 @@
 - [x] CRDT & Vector Clock Collaborative Synchronization (`txt-sync::crdt`): Replicated Growable Array (RGA), Lamport timestamps, tombstone deletes, deterministic peer conflict resolution, and SyncEngine integration under ConcurrencyLockManager.
 - [x] Multi-agent autonomous harness collaboration: Dispatched concurrent specialist subagents for parallel development.
 - [x] 100% test pass rate across 66 unit, integration, throughput, and multi-threaded stress tests.
+
+## Milestone 8: v1.0.0 Release & v1.0.1 File Browser & Editor Enhancements [COMPLETED]
+- [x] Release and tag production `v1.0.0` and `v1` on GitHub.
+- [x] Build out Sublime Text "OPEN FILES" section in sidebar with dirty indicators and close buttons.
+- [x] Add real-time live search filter (`🔍`) for directory tree filtering.
+- [x] Add inline New File dialog (`+`) directly in the file browser.
+- [x] Add file extension iconography (Rust, Markdown, TOML/JSON, Python, JS/TS, C/C++, Go, Shell, etc.).
+- [x] Add file size and path hover tooltips in file browser.
+- [x] Add soft word wrap toggle (`view.toggle_word_wrap` / `Option+Z`).
+- [x] Add Sublime line duplication (`edit.duplicate_line` / `Cmd+Shift+D`) and line deletion (`edit.delete_line` / `Cmd+Shift+K`).
+- [x] Add GUI integration tests in `crates/txt-gui/tests/gui_test.rs`.
+

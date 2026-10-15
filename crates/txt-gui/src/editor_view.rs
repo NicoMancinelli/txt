@@ -12,6 +12,7 @@ pub struct EditorView {
     pub tab_size: usize,
     pub scroll_offset_y: f32,
     pub show_minimap: bool,
+    pub word_wrap: bool,
 }
 
 impl Default for EditorView {
@@ -22,6 +23,7 @@ impl Default for EditorView {
             tab_size: 4,
             scroll_offset_y: 0.0,
             show_minimap: true,
+            word_wrap: true,
         }
     }
 }
@@ -254,6 +256,30 @@ impl EditorView {
         for text in typed_text {
             let new_sels = buffer.insert_at_selections(selections.selections(), &text);
             selections.set_all(new_sels);
+        }
+
+        // Duplicate Line (Sublime: Cmd+Shift+D / Ctrl+Shift+D)
+        let cmd = ui.input(|i| i.modifiers.command || i.modifiers.ctrl);
+        let shift = ui.input(|i| i.modifiers.shift);
+
+        if cmd && shift && ui.input(|i| i.key_pressed(Key::D)) {
+            let pos = buffer.char_to_pos(selections.primary().head);
+            if let Some(line_slice) = buffer.line(pos.line) {
+                let line_text = line_slice.to_string();
+                let next_line_start = buffer.pos_to_char(CursorPosition::new(pos.line + 1, 0));
+                buffer.insert(next_line_start, &line_text);
+            }
+        }
+
+        // Delete Line (Sublime: Cmd+Shift+K / Ctrl+Shift+K)
+        if cmd && shift && ui.input(|i| i.key_pressed(Key::K)) {
+            let pos = buffer.char_to_pos(selections.primary().head);
+            let line_start = buffer.pos_to_char(CursorPosition::new(pos.line, 0));
+            let line_end = buffer.pos_to_char(CursorPosition::new(pos.line + 1, 0));
+            if line_end > line_start {
+                buffer.delete(line_start..line_end);
+                selections.set_primary(Selection::point(line_start.min(buffer.len_chars())));
+            }
         }
 
         // Backspace
