@@ -4,6 +4,8 @@ mod app;
 mod editor_view;
 #[path = "../src/find_replace_view.rs"]
 mod find_replace_view;
+#[path = "../src/menubar.rs"]
+mod menubar;
 #[path = "../src/palette.rs"]
 mod palette;
 #[path = "../src/sidebar.rs"]
@@ -283,6 +285,7 @@ fn test_persistent_session_state_save_and_restore() {
         font_size: 16.0,
         theme: "Monokai".to_string(),
         word_wrap: false,
+        ..Default::default()
     };
 
     txt_core::SessionManager::save_session(&session_file, &state).unwrap();
@@ -294,6 +297,146 @@ fn test_persistent_session_state_save_and_restore() {
     assert_eq!(loaded.font_size, 16.0);
     assert_eq!(loaded.theme, "Monokai");
     assert!(!loaded.word_wrap);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_all_seven_themes_via_commands() {
+    let mut app = TxtEditorApp::new();
+
+    let theme_commands = [
+        ("view.theme_monokai", EditorTheme::Monokai),
+        ("view.theme_solarized_dark", EditorTheme::SolarizedDark),
+        ("view.theme_solarized_light", EditorTheme::SolarizedLight),
+        ("view.theme_one_dark", EditorTheme::OneDark),
+        ("view.theme_dracula", EditorTheme::Dracula),
+        ("view.theme_nord", EditorTheme::Nord),
+        ("view.theme_mariana", EditorTheme::Mariana),
+    ];
+
+    for (cmd, expected_theme) in theme_commands {
+        app.execute_command(cmd);
+        assert_eq!(app.theme, expected_theme, "Failed switching with command {}", cmd);
+    }
+}
+
+#[test]
+fn test_font_scaling_commands() {
+    let mut app = TxtEditorApp::new();
+    let initial_font = app.editor_view.font_size;
+
+    app.execute_command("view.font_increase");
+    assert_eq!(app.editor_view.font_size, initial_font + 1.0);
+
+    app.execute_command("view.font_decrease");
+    assert_eq!(app.editor_view.font_size, initial_font);
+
+    app.editor_view.font_size = 24.0;
+    app.execute_command("view.font_reset");
+    assert_eq!(app.editor_view.font_size, 14.0);
+}
+
+#[test]
+fn test_workspace_management_and_recent_tracking() {
+    let mut app = TxtEditorApp::new();
+    let temp_dir = std::env::temp_dir().join(format!("txt_ws_test_{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+
+    let file_a = temp_dir.join("file_a.rs");
+    let file_b = temp_dir.join("file_b.rs");
+    std::fs::write(&file_a, "fn a() {}").unwrap();
+    std::fs::write(&file_b, "fn b() {}").unwrap();
+
+    // Opening files adds to recent files and selects tabs without duplicate buffers
+    app.open_file(file_a.clone());
+    assert_eq!(app.buffers.len(), 2);
+    assert_eq!(app.recent_files[0], file_a);
+
+    app.open_file(file_b.clone());
+    assert_eq!(app.buffers.len(), 3);
+    assert_eq!(app.recent_files[0], file_b);
+
+    // Opening already open file activates tab and puts to front of recent files
+    app.open_file(file_a.clone());
+    assert_eq!(app.buffers.len(), 3);
+    assert_eq!(app.active_tab, 1);
+    assert_eq!(app.recent_files[0], file_a);
+
+    // Save workspace
+    let ws_path = temp_dir.join("test.txt-workspace");
+    app.save_workspace_as(ws_path.clone());
+    assert_eq!(app.active_workspace, Some(ws_path.clone()));
+    assert_eq!(app.active_workspace_name, Some("test".to_string()));
+    assert_eq!(app.recent_workspaces[0], ws_path);
+
+    // Close workspace
+    app.execute_command("project.close_workspace");
+    assert_eq!(app.active_workspace, None);
+    assert_eq!(app.active_workspace_name, None);
+
+    // Reopen workspace
+    app.open_workspace(ws_path);
+    assert!(app.active_workspace.is_some());
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_menubar_state_and_categories() {
+    use menubar::{MenuCategory, MenuBarState};
+    let mut state = MenuBarState::new();
+    assert_eq!(state.active_menu, None);
+    assert_eq!(state.active_submenu, None);
+
+    state.active_menu = Some(MenuCategory::File);
+    state.active_submenu = Some("recent_files".to_string());
+    assert_eq!(state.active_menu, Some(MenuCategory::File));
+
+    state.close();
+    assert_eq!(state.active_menu, None);
+    assert_eq!(state.active_submenu, None);
+
+    assert_eq!(MenuCategory::App.title(), "txt");
+    assert_eq!(MenuCategory::File.title(), "File");
+    assert_eq!(MenuCategory::Edit.title(), "Edit");
+    assert_eq!(MenuCategory::Selection.title(), "Selection");
+    assert_eq!(MenuCategory::Find.title(), "Find");
+    assert_eq!(MenuCategory::View.title(), "View");
+    assert_eq!(MenuCategory::Goto.title(), "Goto");
+    assert_eq!(MenuCategory::Tools.title(), "Tools");
+    assert_eq!(MenuCategory::Project.title(), "Project");
+    assert_eq!(MenuCategory::Help.title(), "Help");
+}
+
+#[test]
+fn test_save_all_and_revert_commands() {
+    let mut app = TxtEditorApp::new();
+    let temp_dir = std::env::temp_dir().join(format!("txt_revert_test_{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+
+    let test_file = temp_dir.join("test_revert.rs");
+    std::fs::write(&test_file, "original content").unwrap();
+
+    app.open_file(test_file.clone());
+    let active_idx = app.active_tab;
+
+    // Mutate buffer
+    app.buffers[active_idx].insert(0, "modified ");
+    assert!(app.buffers[active_idx].is_dirty());
+
+    // Revert file reloads original content
+    app.execute_command("file.revert");
+    assert_eq!(app.buffers[active_idx].text(), "original content");
+    assert!(!app.buffers[active_idx].is_dirty());
+
+    // Mutate and save all
+    app.buffers[active_idx].insert(0, "persisted ");
+    assert!(app.buffers[active_idx].is_dirty());
+    app.execute_command("file.save_all");
+    assert!(!app.buffers[active_idx].is_dirty());
+    let saved_disk = std::fs::read_to_string(&test_file).unwrap();
+    assert_eq!(saved_disk, "persisted original content");
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }

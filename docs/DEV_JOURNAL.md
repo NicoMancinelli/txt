@@ -127,3 +127,36 @@
   - **Persistent Session Restoration (`app.rs`)**: Workspace state restores seamlessly on startup and persists on file operations and settings changes.
 - **Verification & Outcome**: 123 unit, integration, benchmark, and stress tests passing with 0 warnings and 0 errors across the entire workspace. Desktop binary builds in 0.44s.
 
+---
+
+### Entry 010: v2.0 Visual Polish, 7 Themes, Interactive Top MenuBar Widget, and Workspace Support
+- **Context**: The user requested: "now work on v2 with more visual polish, themeing, full mac menubar support and menus, an interactive menubar widget, and full file, folder, and workspace support".
+- **Harness Multi-Agent Orchestration**:
+  1. `Workspace & Project Specialist`:
+     - `crates/txt-core/src/workspace.rs`: Multi-root project configurations (`WorkspaceFolder`, `WorkspaceSettings`, `WorkspaceConfig`) with atomic save/load and backwards-compatible parsing of Sublime Text `.sublime-project` JSON files.
+     - `crates/txt-core/src/session.rs`: Extended `SessionState` with `recent_files` (LRU bounded to 20), `recent_workspaces` (LRU bounded to 10), and `active_workspace` path tracking.
+     - `crates/txt-core/tests/workspace_test.rs`: 6 comprehensive unit tests validating project save/load, duplicate prevention, recent LRU deduplication, and `.sublime-project` compatibility.
+  2. `Theme & Aesthetics Specialist`:
+     - `crates/txt-gui/src/theme.rs`: Expanded from 2 themes to 7 complete color schemes:
+       1. **Mariana**: Sublime Text modern slate dark.
+       2. **Monokai**: Classic iconic high-contrast dark.
+       3. **Solarized Dark**: Precision low-contrast dark.
+       4. **Solarized Light**: Clean low-contrast daylight palette.
+       5. **One Dark**: Indigo/slate dark.
+       6. **Dracula**: High-contrast gothic dark.
+       7. **Nord**: Arctic blue palette.
+     - Implemented full palette methods: `tab_active_text()`, `tab_inactive_text()`, `gutter_active_text()`, `status_bar_text()`, `menu_bar_bg()`, `menu_item_hover()`, `is_dark()`, and `from_name()` with case-insensitive and slug resolution.
+     - `crates/txt-gui/tests/theme_test.rs`: 5 unit tests validating round-trip lookups, dark/light classification, and syntax color contrast.
+- **Top MenuBar Widget & UI Integration (`crates/txt-gui`)**:
+  - `crates/txt-gui/src/menubar.rs`: Native top menu bar widget implementing all Sublime Text menus: `txt`, `File`, `Edit`, `Selection`, `Find`, `View`, `Goto`, `Tools`, `Project`, `Help`.
+  - Nested submenus for **Color Schemes** (with live active checkmarks) and **Open Recent Files** / **Open Recent Workspaces**.
+  - Dynamic right-aligned Active Workspace indicator in the menu bar.
+  - Keyboard accelerators displayed for commands and shortcuts wired for instant execution.
+  - Sublime file actions: "Save As...", "Save All", "Revert File", "Close File".
+  - Font scaling commands: Increase (<kbd>Cmd+=</kbd>), Decrease (<kbd>Cmd+-</kbd>), Reset (<kbd>Cmd+0</kbd>).
+  - Multi-tab enhancements: duplicate tab prevention on opening, dirty indicator dots, active tab color highlights.
+- **Verification & Outcome**:
+  - `cargo check --workspace`: 0 warnings, 0 errors.
+  - `cargo test --workspace`: 139 passed across all crates, 0 failed.
+  - `cargo build -p txt-gui --bin txt`: successful compilation in 0.25s.
+

@@ -106,3 +106,24 @@
   - `SessionState` tracking open files, active tab, sidebar visibility, font size, theme, and word wrap.
   - `SessionManager` auto-saving to `.txt/session.json` and restoring workspace state on startup.
 - [x] 100% test pass rate across 123 unit, integration, benchmark, and stress tests.
+
+---
+
+## Milestone 11: v2.0 Visual Polish, 7 Themes, Top MenuBar Widget, & Workspace Support [COMPLETE]
+- [x] Visual Polish & Theming (`txt-gui::theme`):
+  - 7 Distinct Color Schemes: Mariana, Monokai, Solarized Dark, Solarized Light, One Dark, Dracula, and Nord.
+  - Full palette methods: `tab_active_text()`, `tab_inactive_text()`, `gutter_active_text()`, `status_bar_text()`, `menu_bar_bg()`, `menu_item_hover()`, and `syntax_color()`.
+  - Dynamic live theme switching via Command Palette and top menu bar with active checkmarks.
+- [x] Interactive Top MenuBar Widget (`txt-gui::menubar`):
+  - 10 Top-level categories: `txt`, `File`, `Edit`, `Selection`, `Find`, `View`, `Goto`, `Tools`, `Project`, `Help`.
+  - Dropdown areas with hover switching across menus.
+  - Flyout nested submenus for Themes, Recent Files, and Recent Workspaces.
+  - Active workspace indicator right-aligned on top menu strip.
+  - Keyboard accelerators displayed for commands.
+- [x] Multi-Root Workspace & Project Configurations (`txt-core::workspace`):
+  - `WorkspaceConfig`, `WorkspaceFolder`, `WorkspaceSettings` with atomic JSON persistence.
+  - Full backwards compatibility with Sublime Text `.sublime-project` files (`{"folders": [{"path": "..."}, ...]}`).
+  - "Open Recent Files" and "Open Recent Workspaces" tracking in `SessionState` with LRU deduplication.
+  - Actions: "Save As...", "Save All", "Revert File", "Open Workspace...", "Save Workspace As...", "Close Workspace".
+  - Font scaling commands: Increase (`Cmd+=`), Decrease (`Cmd+-`), Reset (`Cmd+0`).
+- [x] 100% test pass rate across 139 unit and integration tests with zero compiler warnings.

@@ -17,6 +17,7 @@ use txt_sync::memory_adapter::MemorySyncAdapter;
 
 use crate::editor_view::EditorView;
 use crate::palette::CommandPalette;
+use crate::menubar::{MenuBar, MenuBarContext, MenuBarState};
 use crate::sidebar::Sidebar;
 use crate::status_bar::StatusBar;
 use crate::tabs::TabBar;
@@ -39,6 +40,11 @@ pub struct TxtEditorApp {
     pub plugin_manager: Arc<PluginManager>,
     pub lsp_state: Arc<LspClientState>,
     pub last_notification: Option<String>,
+    pub menubar_state: MenuBarState,
+    pub recent_files: Vec<PathBuf>,
+    pub recent_workspaces: Vec<PathBuf>,
+    pub active_workspace: Option<PathBuf>,
+    pub active_workspace_name: Option<String>,
 }
 
 impl Default for TxtEditorApp {
@@ -106,6 +112,11 @@ fn main() {
             plugin_manager,
             lsp_state,
             last_notification: None,
+            menubar_state: MenuBarState::new(),
+            recent_files: Vec::new(),
+            recent_workspaces: Vec::new(),
+            active_workspace: None,
+            active_workspace_name: None,
         };
 
         // Restore persistent session if present
@@ -134,10 +145,18 @@ fn main() {
             app.sidebar.is_visible = saved_session.sidebar_visible;
             app.editor_view.font_size = saved_session.font_size;
             app.editor_view.word_wrap = saved_session.word_wrap;
-            if saved_session.theme == "Monokai" {
-                app.theme = EditorTheme::Monokai;
-            } else {
-                app.theme = EditorTheme::Mariana;
+            app.theme = EditorTheme::from_name(&saved_session.theme).unwrap_or(EditorTheme::Mariana);
+            app.recent_files = saved_session.recent_files.clone();
+            app.recent_workspaces = saved_session.recent_workspaces.clone();
+            app.active_workspace = saved_session.active_workspace.clone();
+
+            if let Some(ws_path) = &app.active_workspace {
+                if let Ok(cfg) = txt_core::WorkspaceConfig::load_from_file(ws_path) {
+                    app.active_workspace_name = Some(cfg.name.clone());
+                    for folder in &cfg.folders {
+                        app.sidebar.project_manager.add_folder(folder.path.clone());
+                    }
+                }
             }
         }
 
@@ -157,6 +176,22 @@ fn main() {
             CommandDescriptor::new("file.save", "Save", "File")
                 .with_shortcut("Cmd+S")
                 .with_description("Saves the active file to disk"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("file.save_as", "Save As...", "File")
+                .with_shortcut("Cmd+Shift+S")
+                .with_description("Saves the active file to a new location"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("file.save_all", "Save All", "File")
+                .with_description("Saves all open buffers to disk"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("file.revert", "Revert File", "File")
+                .with_description("Reverts the current buffer to disk state"),
             || {},
         );
         self.registry.register(
@@ -257,10 +292,63 @@ fn main() {
                 .with_description("Switch color scheme to Sublime Monokai"),
             || {},
         );
+        self.registry.register(
+            CommandDescriptor::new("view.theme_solarized_dark", "Theme: Solarized Dark", "Preferences")
+                .with_description("Switch color scheme to Solarized Dark"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.theme_solarized_light", "Theme: Solarized Light", "Preferences")
+                .with_description("Switch color scheme to Solarized Light"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.theme_one_dark", "Theme: One Dark", "Preferences")
+                .with_description("Switch color scheme to One Dark"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.theme_dracula", "Theme: Dracula", "Preferences")
+                .with_description("Switch color scheme to Dracula"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.theme_nord", "Theme: Nord", "Preferences")
+                .with_description("Switch color scheme to Nord"),
+            || {},
+        );
 
         self.registry.register(
             CommandDescriptor::new("view.toggle_minimap", "Toggle Minimap", "View")
                 .with_description("Shows or hides the skyline minimap"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.font_increase", "Font: Increase", "View")
+                .with_shortcut("Cmd+=")
+                .with_description("Increases editor font size"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.font_decrease", "Font: Decrease", "View")
+                .with_shortcut("Cmd+-")
+                .with_description("Decreases editor font size"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("view.font_reset", "Font: Reset", "View")
+                .with_shortcut("Cmd+0")
+                .with_description("Resets editor font size to default 14pt"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("project.save_workspace_as", "Project: Save Workspace As...", "Project")
+                .with_description("Saves project folders and settings as a workspace file"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("project.close_workspace", "Project: Close Workspace", "Project")
+                .with_description("Closes the active workspace"),
             || {},
         );
 
@@ -442,6 +530,35 @@ fn main() {
                     self.save_session();
                 }
             }
+            "file.save_as" => {
+                if let Some(buf) = self.buffers.get_mut(self.active_tab) {
+                    let _ = buf.save();
+                    self.last_notification = Some(format!("Saved: {}", buf.file_name()));
+                    self.save_session();
+                }
+            }
+            "file.save_all" => {
+                let mut saved_count = 0;
+                for buf in &mut self.buffers {
+                    if buf.is_dirty() {
+                        let _ = buf.save();
+                        saved_count += 1;
+                    }
+                }
+                self.last_notification = Some(format!("Saved {} files", saved_count));
+                self.save_session();
+            }
+            "file.revert" => {
+                if let Some(buf) = self.buffers.get(self.active_tab) {
+                    if let Some(path) = buf.file_path() {
+                        let path_buf = path.to_path_buf();
+                        if let Ok(reloaded) = TextBuffer::from_file(&path_buf) {
+                            self.buffers[self.active_tab] = reloaded;
+                            self.last_notification = Some(format!("Reverted: {}", path_buf.display()));
+                        }
+                    }
+                }
+            }
             "file.close_tab" => {
                 self.close_tab(self.active_tab);
             }
@@ -531,6 +648,26 @@ fn main() {
             }
             "view.theme_monokai" => {
                 self.theme = EditorTheme::Monokai;
+                self.save_session();
+            }
+            "view.theme_solarized_dark" => {
+                self.theme = EditorTheme::SolarizedDark;
+                self.save_session();
+            }
+            "view.theme_solarized_light" => {
+                self.theme = EditorTheme::SolarizedLight;
+                self.save_session();
+            }
+            "view.theme_one_dark" => {
+                self.theme = EditorTheme::OneDark;
+                self.save_session();
+            }
+            "view.theme_dracula" => {
+                self.theme = EditorTheme::Dracula;
+                self.save_session();
+            }
+            "view.theme_nord" => {
+                self.theme = EditorTheme::Nord;
                 self.save_session();
             }
             "sync.now" => {
@@ -730,6 +867,41 @@ fn main() {
             "tools.command_palette" => {
                 self.palette.open(&self.registry);
             }
+            "view.font_increase" => {
+                self.editor_view.font_size = (self.editor_view.font_size + 1.0).min(40.0);
+                self.last_notification = Some(format!("Font size: {:.0}pt", self.editor_view.font_size));
+                self.save_session();
+            }
+            "view.font_decrease" => {
+                self.editor_view.font_size = (self.editor_view.font_size - 1.0).max(8.0);
+                self.last_notification = Some(format!("Font size: {:.0}pt", self.editor_view.font_size));
+                self.save_session();
+            }
+            "view.font_reset" => {
+                self.editor_view.font_size = 14.0;
+                self.last_notification = Some("Font size reset to 14pt".to_string());
+                self.save_session();
+            }
+            "project.save_workspace_as" => {
+                let ws_path = self.active_workspace.clone().unwrap_or_else(|| {
+                    self.sidebar.current_directory.join("project.txt-workspace")
+                });
+                self.save_workspace_as(ws_path);
+            }
+            "project.close_workspace" => {
+                self.active_workspace = None;
+                self.active_workspace_name = None;
+                self.last_notification = Some("Workspace closed".to_string());
+                self.save_session();
+            }
+            cmd if cmd.starts_with("file.open_path:") => {
+                let path_str = &cmd["file.open_path:".len()..];
+                self.open_file(PathBuf::from(path_str));
+            }
+            cmd if cmd.starts_with("project.open_path:") => {
+                let path_str = &cmd["project.open_path:".len()..];
+                self.open_workspace(PathBuf::from(path_str));
+            }
             _ => {}
         }
     }
@@ -746,10 +918,7 @@ fn main() {
             .get(self.active_tab)
             .and_then(|b| b.file_path().map(|p| p.to_path_buf()));
 
-        let theme_str = match self.theme {
-            EditorTheme::Mariana => "Mariana".to_string(),
-            EditorTheme::Monokai => "Monokai".to_string(),
-        };
+        let theme_str = self.theme.name().to_string();
 
         let session_state = txt_core::SessionState {
             open_files,
@@ -758,10 +927,72 @@ fn main() {
             font_size: self.editor_view.font_size,
             theme: theme_str,
             word_wrap: self.editor_view.word_wrap,
+            recent_files: self.recent_files.clone(),
+            recent_workspaces: self.recent_workspaces.clone(),
+            active_workspace: self.active_workspace.clone(),
         };
 
         let session_path = txt_core::SessionManager::default_session_path();
         let _ = txt_core::SessionManager::save_session(&session_path, &session_state);
+    }
+
+    pub fn push_recent_file(&mut self, path: PathBuf) {
+        self.recent_files.retain(|p| p != &path);
+        self.recent_files.insert(0, path);
+        if self.recent_files.len() > 20 {
+            self.recent_files.truncate(20);
+        }
+    }
+
+    pub fn push_recent_workspace(&mut self, path: PathBuf) {
+        self.recent_workspaces.retain(|p| p != &path);
+        self.recent_workspaces.insert(0, path);
+        if self.recent_workspaces.len() > 10 {
+            self.recent_workspaces.truncate(10);
+        }
+    }
+
+    pub fn open_workspace(&mut self, path: PathBuf) {
+        if let Ok(cfg) = txt_core::WorkspaceConfig::load_from_file(&path) {
+            self.active_workspace = Some(path.clone());
+            self.active_workspace_name = Some(cfg.name.clone());
+            self.push_recent_workspace(path);
+            if let Some(fs) = cfg.settings.font_size {
+                self.editor_view.font_size = fs;
+            }
+            if let Some(ww) = cfg.settings.word_wrap {
+                self.editor_view.word_wrap = ww;
+            }
+            for folder in &cfg.folders {
+                self.sidebar.project_manager.add_folder(folder.path.clone());
+            }
+            if let Some(first_folder) = cfg.folders.first() {
+                self.sidebar.current_directory = first_folder.path.clone();
+            }
+            self.last_notification = Some(format!("Opened workspace: {}", cfg.name));
+            self.save_session();
+        }
+    }
+
+    pub fn save_workspace_as(&mut self, path: PathBuf) {
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Workspace")
+            .to_string();
+        let mut cfg = txt_core::WorkspaceConfig::new(name);
+        for folder in &self.sidebar.project_manager.folders {
+            cfg.add_folder(folder.root_path.clone(), Some(folder.name.clone()));
+        }
+        cfg.settings.font_size = Some(self.editor_view.font_size);
+        cfg.settings.word_wrap = Some(self.editor_view.word_wrap);
+        if let Ok(()) = cfg.save_to_file(&path) {
+            self.active_workspace = Some(path.clone());
+            self.active_workspace_name = Some(cfg.name.clone());
+            self.push_recent_workspace(path);
+            self.last_notification = Some(format!("Saved workspace: {}", cfg.name));
+            self.save_session();
+        }
     }
 
     pub fn trigger_sync(&mut self) {
@@ -781,7 +1012,16 @@ fn main() {
     }
 
     pub fn open_file(&mut self, path: PathBuf) {
+        // If file is already open in a tab, switch to it
+        if let Some(idx) = self.buffers.iter().position(|b| b.file_path() == Some(&path)) {
+            self.active_tab = idx;
+            self.push_recent_file(path);
+            self.save_session();
+            return;
+        }
+
         if let Ok(buf) = TextBuffer::from_file(&path) {
+            self.push_recent_file(path);
             self.buffers.push(buf);
             self.selections.push(SelectionSet::new());
             self.active_tab = self.buffers.len().saturating_sub(1);
@@ -862,6 +1102,14 @@ impl eframe::App for TxtEditorApp {
             self.execute_command("edit.delete_line");
         } else if cmd && alt && ctx.input(|i| i.key_pressed(Key::R)) {
             self.execute_command("file.reveal_in_sidebar");
+        } else if cmd && !shift && ctx.input(|i| i.key_pressed(Key::Equals)) {
+            self.execute_command("view.font_increase");
+        } else if cmd && !shift && ctx.input(|i| i.key_pressed(Key::Minus)) {
+            self.execute_command("view.font_decrease");
+        } else if cmd && !shift && ctx.input(|i| i.key_pressed(Key::Num0)) {
+            self.execute_command("view.font_reset");
+        } else if cmd && shift && ctx.input(|i| i.key_pressed(Key::S)) {
+            self.execute_command("file.save_all");
         }
 
         // Handle Command Palette execution (with symbol & line jumping)
@@ -886,6 +1134,30 @@ impl eframe::App for TxtEditorApp {
                 }
             }
         }
+
+        // Interactive Top MenuBar Widget (Sublime Text modeled)
+        egui::TopBottomPanel::top("top_menu_bar")
+            .frame(egui::Frame::none().fill(self.theme.menu_bar_bg()))
+            .show(ctx, |ui| {
+                let menu_ctx = MenuBarContext {
+                    theme: self.theme,
+                    is_sidebar_visible: self.sidebar.is_visible,
+                    is_open_files_visible: self.sidebar.show_open_files,
+                    is_minimap_visible: self.editor_view.show_minimap,
+                    is_word_wrap: self.editor_view.word_wrap,
+                    recent_files: &self.recent_files,
+                    recent_workspaces: &self.recent_workspaces,
+                    active_workspace_name: self.active_workspace_name.as_deref(),
+                };
+                if let Some(cmd_id) = MenuBar::show(
+                    &mut self.menubar_state,
+                    ui,
+                    ctx,
+                    &menu_ctx,
+                ) {
+                    self.execute_command(&cmd_id);
+                }
+            });
 
         // Main Layout: Top Tab Bar, Bottom Status Bar, Left Sidebar, Center Editor
         egui::TopBottomPanel::top("top_tab_bar")
