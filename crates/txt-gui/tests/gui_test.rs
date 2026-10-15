@@ -82,3 +82,51 @@ fn test_app_new_commands_integration() {
     app.execute_command("sync.crdt_delta");
     assert!(app.last_notification.as_ref().unwrap().contains("CRDT Patch synced"));
 }
+
+#[test]
+fn test_sidebar_open_files_and_filtering() {
+    let mut app = TxtEditorApp::new();
+    assert!(app.sidebar.show_open_files);
+
+    app.execute_command("view.toggle_open_files");
+    assert!(!app.sidebar.show_open_files);
+
+    app.execute_command("view.toggle_open_files");
+    assert!(app.sidebar.show_open_files);
+
+    app.sidebar.search_filter = "Cargo".to_string();
+    assert_eq!(app.sidebar.search_filter, "Cargo");
+
+    app.execute_command("project.refresh_folders");
+    assert!(app.sidebar.current_directory.exists());
+}
+
+#[test]
+fn test_editor_word_wrap_toggle() {
+    let mut app = TxtEditorApp::new();
+    assert!(app.editor_view.word_wrap);
+
+    app.execute_command("view.toggle_word_wrap");
+    assert!(!app.editor_view.word_wrap);
+
+    app.execute_command("view.toggle_word_wrap");
+    assert!(app.editor_view.word_wrap);
+}
+
+#[test]
+fn test_editor_duplicate_and_delete_line() {
+    let mut app = TxtEditorApp::new();
+    if let Some(buf) = app.buffers.get_mut(app.active_tab) {
+        buf.replace(0..buf.len_chars(), "first line\nsecond line\n");
+    }
+
+    // Duplicate line
+    app.execute_command("edit.duplicate_line");
+    let text = app.buffers[app.active_tab].text();
+    assert_eq!(text, "first line\nfirst line\nsecond line\n");
+
+    // Delete line
+    app.execute_command("edit.delete_line");
+    let text_after_delete = app.buffers[app.active_tab].text();
+    assert_eq!(text_after_delete, "first line\nsecond line\n");
+}
