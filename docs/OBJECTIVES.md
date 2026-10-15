@@ -84,4 +84,25 @@
 - [x] Toolbar controls: Expand All (`⤢`), Collapse All (`⤡`), Toggle Hidden (`👁`), Refresh (`↻`), New Item (`+`), Search Filter (`🔍`).
 - [x] 100% test pass rate across 74 unit, integration, benchmark, and stress tests.
 
-
+## Milestone 10: v1.1 Advanced Editor Suite [COMPLETED]
+- [x] Sublime Multi-Cursor Power Suite (`txt-core::cursor`):
+  - Incremental next occurrence selection (`Cmd+D` / `Ctrl+D`) with word boundary expansion and EOF wrap-around.
+  - Select all occurrences across buffer (`Cmd+Ctrl+G` / `Alt+F3`).
+  - Split multi-line selections into lines (`Cmd+Shift+L` / `Ctrl+Shift+L`).
+  - Add cursor above / below (`Cmd+Option+Up/Down` / `Ctrl+Alt+Up/Down`) with ragged-line length clamping.
+- [x] High-Performance Buffer Find & Replace Engine (`txt-core::find_replace`):
+  - Sub-millisecond literal, whole-word (`\b`), and regex pattern searching (`FindReplaceEngine`).
+  - Wrap-around `find_next` and `find_prev`.
+  - Single-occurrence `replace_next` with regex capture group substitutions.
+  - Full-buffer `replace_all` applying edits in reverse index order to preserve earlier character offsets.
+  - Slide-up bottom Find & Replace GUI panel with `Aa`, `\b`, `.*` toggles, status badge, and next/prev/replace buttons.
+  - Viewport match highlights in editor canvas with active match distinct gold border.
+- [x] Document Symbol Extraction & Goto Symbol (`txt-core::symbols`):
+  - Fast lexical scanner extracting functions, structs, enums, traits, classes, headings, and constants across Rust, Python, Markdown, and JS/TS.
+  - Fuzzy symbol search in Command Palette triggered with `@` (`Cmd+R`).
+  - Direct Goto Line mode in Command Palette triggered with `:` (`Ctrl+G`).
+  - Matched character highlights in symbol results and viewport scroll centering.
+- [x] Persistent Session Management (`txt-core::session`):
+  - `SessionState` tracking open files, active tab, sidebar visibility, font size, theme, and word wrap.
+  - `SessionManager` auto-saving to `.txt/session.json` and restoring workspace state on startup.
+- [x] 100% test pass rate across 123 unit, integration, benchmark, and stress tests.

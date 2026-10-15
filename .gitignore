@@ -23,3 +23,7 @@ target/
 sample app/
 *.app/
 *.sublime-package
+
+# Runtime session files
+.txt/
+**/.txt/
