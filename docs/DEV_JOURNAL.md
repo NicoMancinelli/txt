@@ -101,4 +101,29 @@
   - **Dynamic FS Watcher**: Reactively refreshes directory trees on background file modifications.
 - **Outcome**: 74 unit, integration, benchmark, and stress tests passing cleanly with 0 warnings and 0 errors.
 
+---
+
+### Entry 009: v1.1 Advanced Editor Suite (Multi-Cursor, Find & Replace, Symbols, Session)
+- **Context**: The user requested: "Now use agents to work on v1.1 and all the things you feel it should include as an expert rust and app developer".
+- **Harness Multi-Agent Orchestration**:
+  1. `Multi-Cursor Specialist`: Engineered Sublime Text multi-selection powers in `crates/txt-core/src/cursor.rs`:
+     - `select_word_at`: Scans word boundaries with Unicode alphanumeric support.
+     - `select_next_occurrence` (<kbd>Cmd+D</kbd> / <kbd>Ctrl+D</kbd>): Word boundary expansion, incremental next match selection, and wrap-around.
+     - `select_all_occurrences` (<kbd>Cmd+Ctrl+G</kbd> / <kbd>Alt+F3</kbd>): Finds all matches across the entire buffer and allocates multi-cursors.
+     - `split_selection_into_lines` (<kbd>Cmd+Shift+L</kbd> / <kbd>Ctrl+Shift+L</kbd>): Multi-line selection splitting into line cursors.
+     - `add_cursor_above` / `add_cursor_below` (<kbd>Cmd+Option+Up/Down</kbd>): Cursor stacking with ragged line length clamping.
+  2. `Find & Replace Engine Specialist`: Engineered `crates/txt-core/src/find_replace.rs`:
+     - `FindMatch`, `FindOptions` (case-sensitive, whole-word `\b`, regex pattern matching).
+     - Sub-millisecond buffer search (`find_all`, `find_next`, `find_prev` with EOF wrap-around).
+     - `replace_next` with regex capture group expansion (`$1`).
+     - `replace_all` executing replacements in reverse character order to prevent index drift.
+  3. `Symbol Indexer & Session Specialist`:
+     - `crates/txt-core/src/symbols.rs`: Lexical symbol scanner (`SymbolExtractor`, `DocumentSymbol`, `SymbolKind`) extracting functions, structs, enums, traits, classes, headings, and constants across Rust, Python, Markdown, and JS/TS.
+     - `crates/txt-core/src/session.rs`: Persistent state manager (`SessionManager`, `SessionState`) persisting open files, active tab, font size, theme, and sidebar visibility to `.txt/session.json`.
+- **GUI Integration (`crates/txt-gui`)**:
+  - **Sublime Find & Replace Toolbar (`find_replace_view.rs`)**: Bottom slide-up panel with find/replace inputs, `Aa`, `\b`, `.*` toggles, status badge, and next/prev/replace buttons.
+  - **Viewport Match Highlights**: Golden highlight rectangles in the editor canvas for search matches with an active match outline.
+  - **Command Palette Goto Symbol & Goto Line (`palette.rs`)**: Prefixing palette with `@` activates Goto Symbol with fuzzy search and matched letter highlights; prefixing with `:` activates Goto Line.
+  - **Persistent Session Restoration (`app.rs`)**: Workspace state restores seamlessly on startup and persists on file operations and settings changes.
+- **Verification & Outcome**: 123 unit, integration, benchmark, and stress tests passing with 0 warnings and 0 errors across the entire workspace. Desktop binary builds in 0.44s.
 

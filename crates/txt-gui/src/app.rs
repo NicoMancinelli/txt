@@ -30,6 +30,7 @@ pub struct TxtEditorApp {
     pub sidebar: Sidebar,
     pub editor_view: EditorView,
     pub palette: CommandPalette,
+    pub find_replace: crate::find_replace_view::FindReplacePanel,
     pub registry: CommandRegistry,
     pub sync_engine: Arc<SyncEngine>,
     pub cloud_adapter: Arc<CloudSyncAdapter>,
@@ -96,6 +97,7 @@ fn main() {
             sidebar: Sidebar::new(),
             editor_view: EditorView::new(),
             palette: CommandPalette::new(),
+            find_replace: crate::find_replace_view::FindReplacePanel::new(),
             registry: CommandRegistry::new(),
             sync_engine,
             cloud_adapter,
@@ -105,6 +107,39 @@ fn main() {
             lsp_state,
             last_notification: None,
         };
+
+        // Restore persistent session if present
+        let session_path = txt_core::SessionManager::default_session_path();
+        if let Ok(saved_session) = txt_core::SessionManager::load_session(&session_path) {
+            let mut restored_buffers = Vec::new();
+            let mut restored_selections = Vec::new();
+            let mut active_idx = 0;
+
+            for file_path in &saved_session.open_files {
+                if let Ok(buf) = TextBuffer::from_file(file_path) {
+                    if Some(file_path) == saved_session.active_file.as_ref() {
+                        active_idx = restored_buffers.len();
+                    }
+                    restored_buffers.push(buf);
+                    restored_selections.push(SelectionSet::new());
+                }
+            }
+
+            if !restored_buffers.is_empty() {
+                app.buffers = restored_buffers;
+                app.selections = restored_selections;
+                app.active_tab = active_idx.min(app.buffers.len().saturating_sub(1));
+            }
+
+            app.sidebar.is_visible = saved_session.sidebar_visible;
+            app.editor_view.font_size = saved_session.font_size;
+            app.editor_view.word_wrap = saved_session.word_wrap;
+            if saved_session.theme == "Monokai" {
+                app.theme = EditorTheme::Monokai;
+            } else {
+                app.theme = EditorTheme::Mariana;
+            }
+        }
 
         app.register_built_in_commands();
         app
@@ -292,9 +327,79 @@ fn main() {
 
         // Find & Search
         self.registry.register(
+            CommandDescriptor::new("find.find", "Find...", "Find")
+                .with_shortcut("Cmd+F")
+                .with_description("Opens the in-buffer find panel"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("find.replace", "Replace...", "Find")
+                .with_shortcut("Cmd+Option+F")
+                .with_description("Opens the in-buffer find and replace panel"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("find.next", "Find Next", "Find")
+                .with_shortcut("Enter / F3")
+                .with_description("Jumps to the next search match"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("find.prev", "Find Previous", "Find")
+                .with_shortcut("Shift+Enter / Shift+F3")
+                .with_description("Jumps to the previous search match"),
+            || {},
+        );
+        self.registry.register(
             CommandDescriptor::new("find.in_files", "Find in Files (Sublime Parallel Search)", "Find")
                 .with_shortcut("Cmd+Shift+F")
                 .with_description("Scans project files using 4096-item batch parallel workers"),
+            || {},
+        );
+
+        // Goto commands
+        self.registry.register(
+            CommandDescriptor::new("goto.symbol", "Goto Symbol in File...", "Goto")
+                .with_shortcut("Cmd+R")
+                .with_description("Extracts and fuzzy searches document symbols"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("goto.line", "Goto Line...", "Goto")
+                .with_shortcut("Ctrl+G")
+                .with_description("Jumps cursor to a specified line number"),
+            || {},
+        );
+
+        // Multi-cursor commands
+        self.registry.register(
+            CommandDescriptor::new("selection.add_next_occurrence", "Quick Add Next Occurrence", "Selection")
+                .with_shortcut("Cmd+D")
+                .with_description("Selects the next occurrence of current word or text"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("selection.select_all_occurrences", "Quick Find All Occurrences", "Selection")
+                .with_shortcut("Cmd+Ctrl+G")
+                .with_description("Selects all occurrences of current text across buffer"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("selection.split_into_lines", "Split Selection into Lines", "Selection")
+                .with_shortcut("Cmd+Shift+L")
+                .with_description("Splits multi-line selections into one cursor per line"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("selection.add_cursor_above", "Add Cursor Above", "Selection")
+                .with_shortcut("Cmd+Option+Up")
+                .with_description("Adds a new cursor one line above"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("selection.add_cursor_below", "Add Cursor Below", "Selection")
+                .with_shortcut("Cmd+Option+Down")
+                .with_description("Adds a new cursor one line below"),
             || {},
         );
 
@@ -334,6 +439,7 @@ fn main() {
             "file.save" => {
                 if let Some(buf) = self.buffers.get_mut(self.active_tab) {
                     let _ = buf.save();
+                    self.save_session();
                 }
             }
             "file.close_tab" => {
@@ -386,12 +492,14 @@ fn main() {
             }
             "view.toggle_sidebar" => {
                 self.sidebar.toggle();
+                self.save_session();
             }
             "view.toggle_open_files" => {
                 self.sidebar.toggle_open_files();
             }
             "view.toggle_word_wrap" => {
                 self.editor_view.word_wrap = !self.editor_view.word_wrap;
+                self.save_session();
             }
             "project.refresh_folders" => {
                 self.sidebar.refresh();
@@ -419,9 +527,11 @@ fn main() {
             }
             "view.theme_mariana" => {
                 self.theme = EditorTheme::Mariana;
+                self.save_session();
             }
             "view.theme_monokai" => {
                 self.theme = EditorTheme::Monokai;
+                self.save_session();
             }
             "sync.now" => {
                 self.trigger_sync();
@@ -514,11 +624,144 @@ fn main() {
                     self.last_notification = Some("CRDT: Buffer is up-to-date".to_string());
                 }
             }
+            "find.find" => {
+                let initial_text = self.buffers.get(self.active_tab).and_then(|buf| {
+                    self.selections.get(self.active_tab).and_then(|sels| {
+                        let p = sels.primary();
+                        if !p.is_empty() {
+                            Some(buf.slice_text(p.min_char()..p.max_char()))
+                        } else {
+                            None
+                        }
+                    })
+                });
+                if let Some(buf) = self.buffers.get(self.active_tab) {
+                    self.find_replace.open_find(initial_text, buf);
+                }
+            }
+            "find.replace" => {
+                let initial_text = self.buffers.get(self.active_tab).and_then(|buf| {
+                    self.selections.get(self.active_tab).and_then(|sels| {
+                        let p = sels.primary();
+                        if !p.is_empty() {
+                            Some(buf.slice_text(p.min_char()..p.max_char()))
+                        } else {
+                            None
+                        }
+                    })
+                });
+                if let Some(buf) = self.buffers.get(self.active_tab) {
+                    self.find_replace.open_replace(initial_text, buf);
+                }
+            }
+            "find.next" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    self.find_replace.next_match(buf, sels);
+                    let head = sels.primary().head;
+                    let pos = buf.char_to_pos(head);
+                    self.editor_view.scroll_to_line(pos.line);
+                }
+            }
+            "find.prev" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    self.find_replace.prev_match(buf, sels);
+                    let head = sels.primary().head;
+                    let pos = buf.char_to_pos(head);
+                    self.editor_view.scroll_to_line(pos.line);
+                }
+            }
+            "goto.symbol" => {
+                if let Some(buf) = self.buffers.get(self.active_tab) {
+                    let lang = self.active_language();
+                    self.palette.open_symbols(&self.registry, buf, lang.display_name());
+                }
+            }
+            "goto.line" => {
+                if let Some(buf) = self.buffers.get(self.active_tab) {
+                    self.palette.open_goto_line(&self.registry, buf);
+                }
+            }
+            "selection.add_next_occurrence" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    txt_core::select_next_occurrence(buf, sels);
+                }
+            }
+            "selection.select_all_occurrences" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    txt_core::select_all_occurrences(buf, sels);
+                }
+            }
+            "selection.split_into_lines" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    txt_core::split_selection_into_lines(buf, sels);
+                }
+            }
+            "selection.add_cursor_above" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    txt_core::add_cursor_above(buf, sels);
+                }
+            }
+            "selection.add_cursor_below" => {
+                if let (Some(buf), Some(sels)) = (
+                    self.buffers.get(self.active_tab),
+                    self.selections.get_mut(self.active_tab),
+                ) {
+                    txt_core::add_cursor_below(buf, sels);
+                }
+            }
             "tools.command_palette" => {
                 self.palette.open(&self.registry);
             }
             _ => {}
         }
+    }
+
+    pub fn save_session(&self) {
+        let open_files: Vec<PathBuf> = self
+            .buffers
+            .iter()
+            .filter_map(|b| b.file_path().map(|p| p.to_path_buf()))
+            .collect();
+
+        let active_file = self
+            .buffers
+            .get(self.active_tab)
+            .and_then(|b| b.file_path().map(|p| p.to_path_buf()));
+
+        let theme_str = match self.theme {
+            EditorTheme::Mariana => "Mariana".to_string(),
+            EditorTheme::Monokai => "Monokai".to_string(),
+        };
+
+        let session_state = txt_core::SessionState {
+            open_files,
+            active_file,
+            sidebar_visible: self.sidebar.is_visible,
+            font_size: self.editor_view.font_size,
+            theme: theme_str,
+            word_wrap: self.editor_view.word_wrap,
+        };
+
+        let session_path = txt_core::SessionManager::default_session_path();
+        let _ = txt_core::SessionManager::save_session(&session_path, &session_state);
     }
 
     pub fn trigger_sync(&mut self) {
@@ -542,6 +785,7 @@ fn main() {
             self.buffers.push(buf);
             self.selections.push(SelectionSet::new());
             self.active_tab = self.buffers.len().saturating_sub(1);
+            self.save_session();
         }
     }
 
@@ -552,6 +796,7 @@ fn main() {
             if self.active_tab >= self.buffers.len() {
                 self.active_tab = self.buffers.len().saturating_sub(1);
             }
+            self.save_session();
         }
     }
 
@@ -575,6 +820,24 @@ impl eframe::App for TxtEditorApp {
 
         if cmd && shift && ctx.input(|i| i.key_pressed(Key::P)) {
             self.palette.open(&self.registry);
+        } else if cmd && !shift && ctx.input(|i| i.key_pressed(Key::R)) {
+            self.execute_command("goto.symbol");
+        } else if (cmd && !shift && ctx.input(|i| i.key_pressed(Key::G)))
+            || (ctx.input(|i| i.modifiers.ctrl) && ctx.input(|i| i.key_pressed(Key::G)))
+        {
+            self.execute_command("goto.line");
+        } else if cmd && !shift && !alt && ctx.input(|i| i.key_pressed(Key::F)) {
+            self.execute_command("find.find");
+        } else if (cmd && alt && ctx.input(|i| i.key_pressed(Key::F)))
+            || (cmd && !shift && ctx.input(|i| i.key_pressed(Key::H)))
+        {
+            self.execute_command("find.replace");
+        } else if ctx.input(|i| i.key_pressed(Key::F3)) {
+            if shift {
+                self.execute_command("find.prev");
+            } else {
+                self.execute_command("find.next");
+            }
         } else if cmd && ctx.input(|i| i.key_pressed(Key::S)) {
             self.execute_command("file.save");
         } else if cmd && ctx.input(|i| i.key_pressed(Key::N)) {
@@ -601,9 +864,27 @@ impl eframe::App for TxtEditorApp {
             self.execute_command("file.reveal_in_sidebar");
         }
 
-        // Handle Command Palette execution
-        if let Some(cmd_id) = self.palette.show(ctx, self.theme, &self.registry) {
-            self.execute_command(&cmd_id);
+        // Handle Command Palette execution (with symbol & line jumping)
+        let active_lang = self.active_language();
+        let lang_str = active_lang.display_name();
+        let active_buf = self.buffers.get(self.active_tab);
+
+        if let Some(action) = self.palette.show(ctx, self.theme, &self.registry, active_buf, lang_str) {
+            match action {
+                crate::palette::PaletteAction::ExecuteCommand(cmd_id) => {
+                    self.execute_command(&cmd_id);
+                }
+                crate::palette::PaletteAction::GotoPosition { line, column } => {
+                    if let (Some(buf), Some(sels)) = (
+                        self.buffers.get_mut(self.active_tab),
+                        self.selections.get_mut(self.active_tab),
+                    ) {
+                        let char_offset = buf.pos_to_char(CursorPosition::new(line, column));
+                        sels.set_primary(Selection::point(char_offset));
+                        self.editor_view.scroll_to_line(line);
+                    }
+                }
+            }
         }
 
         // Main Layout: Top Tab Bar, Bottom Status Bar, Left Sidebar, Center Editor
@@ -644,6 +925,20 @@ impl eframe::App for TxtEditorApp {
                 }
             });
 
+        // Find & Replace Bottom Overlay Panel
+        if self.find_replace.is_open {
+            egui::TopBottomPanel::bottom("find_replace_bottom_panel")
+                .frame(egui::Frame::none().fill(self.theme.status_bar_bg()))
+                .show(ctx, |ui| {
+                    if let (Some(buf), Some(sels)) = (
+                        self.buffers.get_mut(self.active_tab),
+                        self.selections.get_mut(self.active_tab),
+                    ) {
+                        self.find_replace.show(ui, self.theme, buf, sels);
+                    }
+                });
+        }
+
         let mut opened_file = None;
         let mut close_tab_from_sidebar = None;
         if self.sidebar.is_visible {
@@ -680,7 +975,15 @@ impl eframe::App for TxtEditorApp {
                     self.buffers.get_mut(self.active_tab),
                     self.selections.get_mut(self.active_tab),
                 ) {
-                    self.editor_view.show(ui, self.theme, buf, sels, lang);
+                    self.editor_view.show(
+                        ui,
+                        self.theme,
+                        buf,
+                        sels,
+                        lang,
+                        &self.find_replace.matches,
+                        self.find_replace.active_match_index,
+                    );
                 }
             });
     }

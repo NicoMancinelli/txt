@@ -33,6 +33,10 @@ impl EditorView {
         Self::default()
     }
 
+    pub fn scroll_to_line(&mut self, line: usize) {
+        self.scroll_offset_y = (line as f32 * self.line_height - 120.0).max(0.0);
+    }
+
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -40,6 +44,8 @@ impl EditorView {
         buffer: &mut TextBuffer,
         selections: &mut SelectionSet,
         language: Language,
+        find_matches: &[txt_core::FindMatch],
+        active_match_idx: Option<usize>,
     ) {
         let total_lines = buffer.len_lines().max(1);
         let gutter_width = 54.0;
@@ -104,6 +110,34 @@ impl EditorView {
         // Visible line range for fast, memory-efficient viewport rendering
         let visible_start_line = ((rect.min.y - content_start_y) / self.line_height).floor().max(0.0) as usize;
         let visible_end_line = (((rect.max.y - content_start_y) / self.line_height).ceil() as usize).min(total_lines);
+
+        // Highlight Find & Replace occurrences on visible lines
+        for (m_idx, m) in find_matches.iter().enumerate() {
+            if m.line >= visible_start_line && m.line < visible_end_line {
+                let match_y = content_start_y + (m.line as f32) * self.line_height;
+                let match_x = content_start_x + (m.column as f32) * char_width;
+                let match_width = (m.text.chars().count() as f32) * char_width;
+                let match_rect = Rect::from_min_size(
+                    Pos2::new(match_x, match_y),
+                    Vec2::new(match_width.max(char_width), self.line_height),
+                );
+
+                let is_active = Some(m_idx) == active_match_idx;
+                let fill_color = if is_active {
+                    Color32::from_rgba_premultiplied(255, 215, 0, 110)
+                } else {
+                    Color32::from_rgba_premultiplied(255, 215, 0, 50)
+                };
+                painter.rect_filled(match_rect, Rounding::same(2.0), fill_color);
+                if is_active {
+                    painter.rect_stroke(
+                        match_rect,
+                        Rounding::same(2.0),
+                        Stroke::new(1.5_f32, Color32::from_rgb(255, 215, 0)),
+                    );
+                }
+            }
+        }
 
         for line_idx in visible_start_line..visible_end_line {
             let line_y = content_start_y + (line_idx as f32) * self.line_height;
@@ -258,10 +292,36 @@ impl EditorView {
             selections.set_all(new_sels);
         }
 
-        // Duplicate Line (Sublime: Cmd+Shift+D / Ctrl+Shift+D)
         let cmd = ui.input(|i| i.modifiers.command || i.modifiers.ctrl);
         let shift = ui.input(|i| i.modifiers.shift);
+        let alt = ui.input(|i| i.modifiers.alt);
 
+        // Quick Add Next Occurrence (Sublime: Cmd+D / Ctrl+D)
+        if cmd && !shift && ui.input(|i| i.key_pressed(Key::D)) {
+            txt_core::select_next_occurrence(buffer, selections);
+        }
+
+        // Quick Select All Occurrences (Sublime: Cmd+Ctrl+G / Alt+F3)
+        if (cmd && ui.input(|i| i.modifiers.ctrl) && ui.input(|i| i.key_pressed(Key::G)))
+            || (alt && ui.input(|i| i.key_pressed(Key::F3)))
+        {
+            txt_core::select_all_occurrences(buffer, selections);
+        }
+
+        // Split Selection into Lines (Sublime: Cmd+Shift+L / Ctrl+Shift+L)
+        if cmd && shift && ui.input(|i| i.key_pressed(Key::L)) {
+            txt_core::split_selection_into_lines(buffer, selections);
+        }
+
+        // Add Cursor Above / Below (Sublime: Cmd+Alt+Up / Down or Ctrl+Alt+Up / Down)
+        if cmd && alt && ui.input(|i| i.key_pressed(Key::ArrowUp)) {
+            txt_core::add_cursor_above(buffer, selections);
+        }
+        if cmd && alt && ui.input(|i| i.key_pressed(Key::ArrowDown)) {
+            txt_core::add_cursor_below(buffer, selections);
+        }
+
+        // Duplicate Line (Sublime: Cmd+Shift+D / Ctrl+Shift+D)
         if cmd && shift && ui.input(|i| i.key_pressed(Key::D)) {
             let pos = buffer.char_to_pos(selections.primary().head);
             if let Some(line_slice) = buffer.line(pos.line) {

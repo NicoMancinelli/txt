@@ -2,6 +2,8 @@
 mod app;
 #[path = "../src/editor_view.rs"]
 mod editor_view;
+#[path = "../src/find_replace_view.rs"]
+mod find_replace_view;
 #[path = "../src/palette.rs"]
 mod palette;
 #[path = "../src/sidebar.rs"]
@@ -165,5 +167,134 @@ fn test_sidebar_full_suite_project_and_dialogs() {
     // Removal
     app.sidebar.remove_folder_from_project(&crates_dir);
     assert_eq!(app.sidebar.project_manager.folders.len(), initial_count);
+}
+
+#[test]
+fn test_find_replace_panel_integration() {
+    let mut app = TxtEditorApp::new();
+    let sample = "apple orange banana apple kiwi apple";
+    let len = app.buffers[0].len_chars();
+    app.buffers[0].replace(0..len, sample);
+
+    // Open find
+    app.execute_command("find.find");
+    assert!(app.find_replace.is_open);
+    assert!(!app.find_replace.show_replace);
+
+    // Set query
+    app.find_replace.find_query = "apple".to_string();
+    app.find_replace.update_matches(&app.buffers[0]);
+    assert_eq!(app.find_replace.matches.len(), 3);
+    assert!(app.find_replace.status_text.contains("1 of 3 matches"));
+
+    // Find next
+    app.execute_command("find.next");
+    assert_eq!(app.find_replace.active_match_index, Some(1));
+
+    // Open replace
+    app.execute_command("find.replace");
+    assert!(app.find_replace.show_replace);
+
+    // Replace all
+    app.find_replace.replace_query = "mango".to_string();
+    app.find_replace.replace_all_matches(&mut app.buffers[0], &mut app.selections[0]);
+    assert_eq!(app.buffers[0].text(), "mango orange banana mango kiwi mango");
+    assert_eq!(app.find_replace.matches.len(), 0);
+}
+
+#[test]
+fn test_palette_goto_symbol_and_line() {
+    let mut app = TxtEditorApp::new();
+    let rust_code = r#"
+pub struct EditorState {
+    pub line: usize,
+}
+
+impl EditorState {
+    pub fn new() -> Self {
+        Self { line: 0 }
+    }
+
+    pub fn reset(&mut self) {
+        self.line = 0;
+    }
+}
+"#;
+    let len = app.buffers[0].len_chars();
+    app.buffers[0].replace(0..len, rust_code);
+
+    // Goto Symbol command
+    app.execute_command("goto.symbol");
+    assert!(app.palette.is_open);
+    assert_eq!(app.palette.query, "@");
+    assert!(!app.palette.matched_symbols.is_empty());
+
+    // Search for a specific method
+    app.palette.query = "@reset".to_string();
+    app.palette.update_matches_with_buffer(&app.registry, Some(&app.buffers[0]), "rust");
+    assert_eq!(app.palette.matched_symbols.len(), 1);
+    assert_eq!(app.palette.matched_symbols[0].symbol.name, "reset");
+
+    // Goto Line
+    app.execute_command("goto.line");
+    assert!(app.palette.is_open);
+    assert_eq!(app.palette.query, ":");
+
+    app.palette.query = ":7".to_string();
+    app.palette.update_matches_with_buffer(&app.registry, Some(&app.buffers[0]), "rust");
+    assert_eq!(app.palette.goto_line_target, Some(6));
+}
+
+#[test]
+fn test_multicursor_sublime_commands_gui() {
+    let mut app = TxtEditorApp::new();
+    let text = "alpha beta alpha gamma alpha";
+    let len = app.buffers[0].len_chars();
+    app.buffers[0].replace(0..len, text);
+
+    // Set point at first 'alpha'
+    app.selections[0].set_primary(txt_core::Selection::point(0));
+
+    // 1. Quick Add Next (Cmd+D)
+    app.execute_command("selection.add_next_occurrence");
+    // Expands to word "alpha"
+    assert_eq!(app.selections[0].len(), 1);
+    assert_eq!(app.selections[0].primary(), txt_core::Selection::range(0, 5));
+
+    // 2. Next occurrence
+    app.execute_command("selection.add_next_occurrence");
+    assert_eq!(app.selections[0].len(), 2);
+
+    // 3. Quick Find All (Cmd+Ctrl+G)
+    app.execute_command("selection.select_all_occurrences");
+    assert_eq!(app.selections[0].len(), 3);
+}
+
+#[test]
+fn test_persistent_session_state_save_and_restore() {
+    let temp_dir = std::env::temp_dir().join(format!("txt_session_test_{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+    let session_file = temp_dir.join("session.json");
+
+    let state = txt_core::SessionState {
+        open_files: vec![temp_dir.join("file1.rs"), temp_dir.join("file2.rs")],
+        active_file: Some(temp_dir.join("file2.rs")),
+        sidebar_visible: false,
+        font_size: 16.0,
+        theme: "Monokai".to_string(),
+        word_wrap: false,
+    };
+
+    txt_core::SessionManager::save_session(&session_file, &state).unwrap();
+    let loaded = txt_core::SessionManager::load_session(&session_file).unwrap();
+
+    assert_eq!(loaded.open_files.len(), 2);
+    assert_eq!(loaded.active_file, Some(temp_dir.join("file2.rs")));
+    assert!(!loaded.sidebar_visible);
+    assert_eq!(loaded.font_size, 16.0);
+    assert_eq!(loaded.theme, "Monokai");
+    assert!(!loaded.word_wrap);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
 }
 

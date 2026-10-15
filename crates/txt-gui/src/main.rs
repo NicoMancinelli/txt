@@ -1,5 +1,6 @@
 mod app;
 mod editor_view;
+mod find_replace_view;
 mod palette;
 mod sidebar;
 mod status_bar;

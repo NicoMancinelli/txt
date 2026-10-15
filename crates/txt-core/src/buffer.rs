@@ -142,6 +142,20 @@ impl TextBuffer {
         self.rope.len_chars() == 0
     }
 
+    /// Returns the character at the specified character offset, if within bounds.
+    pub fn char_at(&self, idx: usize) -> Option<char> {
+        if idx < self.rope.len_chars() {
+            Some(self.rope.char(idx))
+        } else {
+            None
+        }
+    }
+
+    /// Access to the underlying Rope structure.
+    pub fn rope(&self) -> &Rope {
+        &self.rope
+    }
+
     /// Total number of lines in the buffer.
     pub fn len_lines(&self) -> usize {
         self.rope.len_lines()
