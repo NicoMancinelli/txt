@@ -70,3 +70,18 @@
 - [x] Add Sublime line duplication (`edit.duplicate_line` / `Cmd+Shift+D`) and line deletion (`edit.delete_line` / `Cmd+Shift+K`).
 - [x] Add GUI integration tests in `crates/txt-gui/tests/gui_test.rs`.
 
+## Milestone 9: Full Suite File Browser & Multi-Root Projects [COMPLETED]
+- [x] Hierarchical project tree model (`txt-core::project`): `TreeNode`, `ProjectFolder`, `ProjectManager`, `FileOps`.
+- [x] Multi-root project workspaces with dynamic folder registration and removal.
+- [x] Recursive tree building with directory-first sorting and ignore rules (`.git`, `target/`, `node_modules/`, `.DS_Store`).
+- [x] Toggle hidden files command and toolbar button (`project.toggle_hidden`).
+- [x] Atomic file operations: file creation, folder creation, rename, duplicate, recursive delete.
+- [x] Git working tree status scanner (`txt-core::git_status`): Porcelain v1 parser, Mariana color styling, `M`/`U`/`A`/`D` badge decorations.
+- [x] Dynamic background filesystem watcher (`txt-core::watcher`): Zero-leak worker lifecycle tracking with RAII subscription handles.
+- [x] Native right-click context menus for files, directories, and open tabs (New File, New Folder, Rename, Duplicate, Copy Path, Reveal in Finder/Explorer, Delete).
+- [x] Interactive modal overlays for file creation, folder creation, renaming, and delete confirmation with Enter/Escape controls.
+- [x] Reveal Active File in Side Bar command (`file.reveal_in_sidebar` / `Cmd+Option+R`).
+- [x] Toolbar controls: Expand All (`⤢`), Collapse All (`⤡`), Toggle Hidden (`👁`), Refresh (`↻`), New Item (`+`), Search Filter (`🔍`).
+- [x] 100% test pass rate across 74 unit, integration, benchmark, and stress tests.
+
+

@@ -2,18 +2,22 @@ pub mod buffer;
 pub mod command;
 pub mod cursor;
 pub mod fuzzy;
+pub mod git_status;
 pub mod history;
 pub mod lsp;
 pub mod memory;
 pub mod plugin;
+pub mod project;
 pub mod search;
 pub mod syntax;
 pub mod transform;
+pub mod watcher;
 
 pub use buffer::{LineEnding, TextBuffer};
 pub use command::{Command, CommandDescriptor, CommandRegistry, MatchedCommand};
 pub use cursor::{CursorPosition, Selection, SelectionSet};
 pub use fuzzy::{FuzzyMatch, FuzzyMatcher};
+pub use git_status::{GitFileStatus, GitStatusScanner};
 pub use history::{Change, HistoryManager, Transaction};
 pub use lsp::{
     CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity, HoverInfo,
@@ -25,8 +29,11 @@ pub use plugin::{
     AutoClosingBracketsPlugin, BracketPair, CompletionCandidate, EventListener, PluginManager,
     WordCountPlugin,
 };
+pub use project::{FileOps, ProjectFolder, ProjectManager, TreeNode};
 pub use search::{
     ProjectSearchEngine, SearchError, SearchQuery, SearchResult, SUBLIME_BATCH_SIZE,
 };
 pub use syntax::{Language, SyntaxHighlighter, SyntaxToken, TokenType};
 pub use transform::TextTransform;
+pub use watcher::{FileSystemWatcher, WatchEvent, WatchEventKind, WatchSubscription};
+

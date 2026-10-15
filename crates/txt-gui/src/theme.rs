@@ -89,6 +89,13 @@ impl EditorTheme {
         }
     }
 
+    pub fn border(&self) -> Color32 {
+        match self {
+            EditorTheme::Mariana => Color32::from_rgb(0x3e, 0x44, 0x51),
+            EditorTheme::Monokai => Color32::from_rgb(0x49, 0x48, 0x3e),
+        }
+    }
+
     pub fn syntax_color(&self, token_type: TokenType) -> Color32 {
         match self {
             EditorTheme::Mariana => match token_type {

@@ -82,6 +82,23 @@
   - **Inline New File Creation**: Added dialog (`+`) directly in the sidebar toolbar to create files on disk with instantaneous editor opening.
   - **Comprehensive File Icons**: Added iconography for Rust (`🦀`), Markdown (`📝`), TOML/JSON (`⚙`/`📦`), Python (`🐍`), JS/TS (`🟨`/`🔷`), C/C++ (`🇨`/`➕`), Go (`🐹`), Shell (`🐚`), Web (`🌐`/`🎨`), and images.
   - **File Size Tooltips**: Hovering over directory entries displays formatted file size in KB and relative path.
-  - **Editor Shortcuts & Word Wrap**: Added soft word wrap toggle (`view.toggle_word_wrap`), line duplication (`edit.duplicate_line` / `Cmd+Shift+D`), and line deletion (`edit.delete_line` / `Cmd+Shift+K`).
-- **Outcome**: All tests pass cleanly across workspace crates (0 warnings, 0 errors).
+  - **Outcome**: All tests pass cleanly across workspace crates (0 warnings, 0 errors).
+
+---
+
+### Entry 008: Full Suite File Browser & Multi-Root Project Architecture
+- **Context**: The user requested to "use agents to fully build out the file browser and full suite of features for it".
+- **Harness Multi-Agent Orchestration**:
+  1. `Project Tree & File Operations Specialist`: Engineered `crates/txt-core/src/project.rs` (`TreeNode`, `ProjectFolder`, `ProjectManager`, `FileOps`) providing multi-root workspaces, recursive traversal with directories first, VCS/build ignore filtering (`.git`, `target/`, `node_modules/`, `.DS_Store`), tree expansion state preservation, and atomic file operations (create file, create directory, rename, duplicate, recursive delete).
+  2. `Git Status & Watcher Specialist`: Engineered `crates/txt-core/src/git_status.rs` (`GitFileStatus`, `GitStatusScanner` with porcelain parsing and Mariana status coloring) and `crates/txt-core/src/watcher.rs` (`FileSystemWatcher` with strict dynamic lifecycle cleanup when subscriber count drops to zero).
+- **GUI & Interaction Overhaul (`crates/txt-gui/src/sidebar.rs`)**:
+  - **Right-Click Context Menus**: Native right-click context menu on all files and folders (New File, New Folder, Rename, Duplicate, Copy Path, Reveal in Finder/Explorer, Delete).
+  - **Interactive Modal Dialogs**: Sublime-style modal overlay for file creation, folder creation, renaming, and delete confirmation with Enter/Escape keyboard controls.
+  - **Multi-Root Workspaces**: Support for registering multiple project root folders (`project.add_folder`, removal via context menu).
+  - **Git Status Badges & Highlighting**: Live `M`, `U`, `A`, `D` indicators in the sidebar with git status color tokens matching file dirtiness.
+  - **Reveal Active File in Sidebar**: <kbd>Cmd+Option+R</kbd> (`file.reveal_in_sidebar`) automatically expands parent folders and highlights the current buffer in the sidebar.
+  - **Sidebar Toolbar Controls**: Header toolbar with Expand All (`⤢`), Collapse All (`⤡`), Toggle Hidden Files (`👁`), Refresh (`↻`), New Item (`+`), and Live Search Filter (`🔍`).
+  - **Dynamic FS Watcher**: Reactively refreshes directory trees on background file modifications.
+- **Outcome**: 74 unit, integration, benchmark, and stress tests passing cleanly with 0 warnings and 0 errors.
+
 

@@ -187,6 +187,32 @@ fn main() {
             || {},
         );
         self.registry.register(
+            CommandDescriptor::new("project.collapse_all", "Project: Collapse All Folders", "Project")
+                .with_description("Recursively collapses all project folders in sidebar"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("project.expand_all", "Project: Expand All Folders", "Project")
+                .with_description("Recursively expands all project folders in sidebar"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("project.toggle_hidden", "Project: Toggle Hidden / Ignored Files", "Project")
+                .with_description("Toggles visibility of hidden and ignored files (.git, target/, etc.)"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("project.add_folder", "Project: Add Folder to Project...", "Project")
+                .with_description("Adds an external directory root to the project workspace"),
+            || {},
+        );
+        self.registry.register(
+            CommandDescriptor::new("file.reveal_in_sidebar", "File: Reveal in Side Bar", "File")
+                .with_shortcut("Cmd+Option+R")
+                .with_description("Reveals and selects active buffer file in sidebar tree"),
+            || {},
+        );
+        self.registry.register(
             CommandDescriptor::new("view.theme_mariana", "Theme: Mariana", "Preferences")
                 .with_description("Switch color scheme to Sublime Mariana"),
             || {},
@@ -370,6 +396,27 @@ fn main() {
             "project.refresh_folders" => {
                 self.sidebar.refresh();
             }
+            "project.collapse_all" => {
+                self.sidebar.collapse_all();
+            }
+            "project.expand_all" => {
+                self.sidebar.expand_all();
+            }
+            "project.toggle_hidden" => {
+                self.sidebar.toggle_show_hidden();
+            }
+            "project.add_folder" => {
+                self.sidebar.dialog = Some(crate::sidebar::SidebarDialog::AddFolder { input: String::new() });
+                self.sidebar.is_visible = true;
+            }
+            "file.reveal_in_sidebar" => {
+                if let Some(buf) = self.buffers.get(self.active_tab) {
+                    if let Some(path) = buf.file_path() {
+                        self.sidebar.reveal_path(path);
+                        self.sidebar.is_visible = true;
+                    }
+                }
+            }
             "view.theme_mariana" => {
                 self.theme = EditorTheme::Mariana;
             }
@@ -524,6 +571,7 @@ impl eframe::App for TxtEditorApp {
         // Global keyboard shortcut dispatcher
         let cmd = ctx.input(|i| i.modifiers.command || i.modifiers.ctrl);
         let shift = ctx.input(|i| i.modifiers.shift);
+        let alt = ctx.input(|i| i.modifiers.alt);
 
         if cmd && shift && ctx.input(|i| i.key_pressed(Key::P)) {
             self.palette.open(&self.registry);
@@ -549,6 +597,8 @@ impl eframe::App for TxtEditorApp {
             self.execute_command("edit.duplicate_line");
         } else if cmd && shift && ctx.input(|i| i.key_pressed(Key::K)) {
             self.execute_command("edit.delete_line");
+        } else if cmd && alt && ctx.input(|i| i.key_pressed(Key::R)) {
+            self.execute_command("file.reveal_in_sidebar");
         }
 
         // Handle Command Palette execution
